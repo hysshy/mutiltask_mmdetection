@@ -72,20 +72,35 @@ class CocoDataset(CustomDataset):
         self.coco = COCO(ann_file)
         # The order of returned `cat_ids` will not
         # change with the order of the CLASSES
-        self.cat_ids = self.coco.get_cat_ids(cat_names=self.CLASSES)
+        self.cat_ids = self.coco.get_cat_ids()
 
         self.cat2label = {cat_id: i for i, cat_id in enumerate(self.cat_ids)}
         self.img_ids = self.coco.get_img_ids()
+        self.target_rangeIds = {}
         data_infos = []
         total_ann_ids = []
+        detectids = []
+        self.hydata = True
         for i in self.img_ids:
             info = self.coco.load_imgs([i])[0]
+            if self.test_mode and self.hydata:
+                if info['file_name'].split('/')[-2] != 'detectImgs':
+                    continue
+            detectids.append(i)
+            self.img_ids = detectids
             info['filename'] = info['file_name']
             data_infos.append(info)
             ann_ids = self.coco.get_ann_ids(img_ids=[i])
             total_ann_ids.extend(ann_ids)
         assert len(set(total_ann_ids)) == len(
             total_ann_ids), f"Annotation ids in '{ann_file}' are not unique!"
+        if self.hydata:
+            for i, img_info in enumerate(data_infos):
+                file_name = img_info['file_name'].split('/')[-2]
+                if file_name not in self.target_rangeIds.keys():
+                    self.target_rangeIds.setdefault(file_name, [i])
+                else:
+                    self.target_rangeIds[file_name].append(i)
         return data_infos
 
     def get_ann_info(self, idx):
@@ -158,6 +173,8 @@ class CocoDataset(CustomDataset):
         gt_labels = []
         gt_bboxes_ignore = []
         gt_masks_ann = []
+        gt_keypoints = []
+        gt_visibles = []
         for i, ann in enumerate(ann_info):
             if ann.get('ignore', False):
                 continue
@@ -168,8 +185,8 @@ class CocoDataset(CustomDataset):
                 continue
             if ann['area'] <= 0 or w < 1 or h < 1:
                 continue
-            if ann['category_id'] not in self.cat_ids:
-                continue
+            # if ann['category_id'] not in self.cat_ids:
+            #     continue
             bbox = [x1, y1, x1 + w, y1 + h]
             if ann.get('iscrowd', False):
                 gt_bboxes_ignore.append(bbox)
@@ -177,6 +194,10 @@ class CocoDataset(CustomDataset):
                 gt_bboxes.append(bbox)
                 gt_labels.append(self.cat2label[ann['category_id']])
                 gt_masks_ann.append(ann.get('segmentation', None))
+                if "keypoints" in ann.keys():
+                    gt_keypoints.append(ann['keypoints'])
+                if "facevisible" in ann.keys():
+                    gt_visibles.append(ann['facevisible'])
 
         if gt_bboxes:
             gt_bboxes = np.array(gt_bboxes, dtype=np.float32)
@@ -190,15 +211,29 @@ class CocoDataset(CustomDataset):
         else:
             gt_bboxes_ignore = np.zeros((0, 4), dtype=np.float32)
 
+        if gt_keypoints:
+            gt_keypoints = np.array(gt_keypoints, dtype=np.float32)
+        if gt_visibles:
+            gt_visibles = np.array(gt_visibles, dtype=np.float32)
+
         seg_map = img_info['filename'].rsplit('.', 1)[0] + self.seg_suffix
 
-        ann = dict(
-            bboxes=gt_bboxes,
-            labels=gt_labels,
-            bboxes_ignore=gt_bboxes_ignore,
-            masks=gt_masks_ann,
-            seg_map=seg_map)
-
+        if len(gt_keypoints) > 0:
+            ann = dict(
+                bboxes=gt_bboxes,
+                labels=gt_labels,
+                bboxes_ignore=gt_bboxes_ignore,
+                masks=gt_masks_ann,
+                seg_map=seg_map,
+                keypoints=gt_keypoints,
+                gt_visibles=gt_visibles)
+        else:
+            ann = dict(
+                bboxes=gt_bboxes,
+                labels=gt_labels,
+                bboxes_ignore=gt_bboxes_ignore,
+                masks=gt_masks_ann,
+                seg_map=seg_map)
         return ann
 
     def xyxy2xywh(self, bbox):
@@ -636,7 +671,7 @@ class CocoDataset(CustomDataset):
                 raise KeyError(f'metric {metric} is not supported')
 
         coco_gt = self.coco
-        self.cat_ids = coco_gt.get_cat_ids(cat_names=self.CLASSES)
+        self.cat_ids = coco_gt.get_cat_ids()
 
         result_files, tmp_dir = self.format_results(results, jsonfile_prefix)
         eval_results = self.evaluate_det_segm(results, result_files, coco_gt,

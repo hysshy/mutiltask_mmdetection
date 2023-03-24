@@ -8,11 +8,11 @@ from mmcv.runner import get_dist_info
 
 from ...utils import log_img_scale
 from ..builder import DETECTORS
-from .single_stage import SingleStageDetector
+from .single_stage_spjgh import SingleStageDetector_SPJGH
 
 
 @DETECTORS.register_module()
-class YOLOX(SingleStageDetector):
+class YOLOX(SingleStageDetector_SPJGH):
     r"""Implementation of `YOLOX: Exceeding YOLO Series in 2021
     <https://arxiv.org/abs/2107.08430>`_
 
@@ -71,7 +71,10 @@ class YOLOX(SingleStageDetector):
                       img_metas,
                       gt_bboxes,
                       gt_labels,
-                      gt_bboxes_ignore=None):
+                      gt_bboxes_ignore=None,
+                      gt_keypoints=None,
+                      gt_visibles=None
+                      ):
         """
         Args:
             img (Tensor): Input images of shape (N, C, H, W).
@@ -90,11 +93,13 @@ class YOLOX(SingleStageDetector):
             dict[str, Tensor]: A dictionary of loss components.
         """
         # Multi-scale training
-        img, gt_bboxes = self._preprocess(img, gt_bboxes)
-
-        losses = super(YOLOX, self).forward_train(img, img_metas, gt_bboxes,
-                                                  gt_labels, gt_bboxes_ignore)
-
+        img, gt_bboxes, gt_keypoints = self._preprocess(img, gt_bboxes, gt_keypoints)
+        if gt_keypoints is not None:
+            losses = super(YOLOX, self).forward_train(img, img_metas, gt_bboxes,
+                                                      gt_labels, gt_keypoints, gt_visibles, gt_bboxes_ignore)
+        else:
+            losses = super(YOLOX, self).forward_train(img, img_metas, gt_bboxes,
+                                                      gt_labels, gt_bboxes_ignore)
         # random resizing
         if (self._progress_in_iter + 1) % self._random_size_interval == 0:
             self._input_size = self._random_resize(device=img.device)
@@ -102,7 +107,7 @@ class YOLOX(SingleStageDetector):
 
         return losses
 
-    def _preprocess(self, img, gt_bboxes):
+    def _preprocess(self, img, gt_bboxes, gt_keypoints):
         scale_y = self._input_size[0] / self._default_input_size[0]
         scale_x = self._input_size[1] / self._default_input_size[1]
         if scale_x != 1 or scale_y != 1:
@@ -114,7 +119,11 @@ class YOLOX(SingleStageDetector):
             for gt_bbox in gt_bboxes:
                 gt_bbox[..., 0::2] = gt_bbox[..., 0::2] * scale_x
                 gt_bbox[..., 1::2] = gt_bbox[..., 1::2] * scale_y
-        return img, gt_bboxes
+            if gt_keypoints is not None:
+                for gt_keypoint in gt_keypoints:
+                    gt_keypoint[:, :, 0] = gt_keypoint[:, :, 0] * scale_x
+                    gt_keypoint[:, :, 1] = gt_keypoint[:, :, 1] * scale_y
+        return img, gt_bboxes, gt_keypoints
 
     def _random_resize(self, device):
         tensor = torch.LongTensor(2).to(device)

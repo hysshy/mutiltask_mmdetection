@@ -5,6 +5,7 @@ import numpy as np
 import torch
 from mmcv.runner import get_dist_info
 from torch.utils.data import Sampler
+from .hydata_sampler import Hydata_DistributedGroupSampler
 
 
 class GroupSampler(Sampler):
@@ -19,8 +20,10 @@ class GroupSampler(Sampler):
         for i, size in enumerate(self.group_sizes):
             self.num_samples += int(np.ceil(
                 size / self.samples_per_gpu)) * self.samples_per_gpu
+        self.hydata_DistributedGroupSampler = Hydata_DistributedGroupSampler(dataset, samples_per_gpu, 1, None)
 
     def __iter__(self):
+        return self.hydata_DistributedGroupSampler.__iter__()
         indices = []
         for i, size in enumerate(self.group_sizes):
             if size == 0:
@@ -97,8 +100,10 @@ class DistributedGroupSampler(Sampler):
                 math.ceil(self.group_sizes[i] * 1.0 / self.samples_per_gpu /
                           self.num_replicas)) * self.samples_per_gpu
         self.total_size = self.num_samples * self.num_replicas
+        self.hydata_DistributedGroupSampler = Hydata_DistributedGroupSampler(dataset, samples_per_gpu, num_replicas, rank)
 
     def __iter__(self):
+        return self.hydata_DistributedGroupSampler.__iter__()
         # deterministically shuffle based on epoch
         g = torch.Generator()
         g.manual_seed(self.epoch + self.seed)

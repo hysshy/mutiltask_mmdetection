@@ -62,6 +62,21 @@ class DeltaXYWHBBoxCoder(BaseBBoxCoder):
         encoded_bboxes = bbox2delta(bboxes, gt_bboxes, self.means, self.stds)
         return encoded_bboxes
 
+    def kp_encode(self, kp_pos_bboxes, kpos_gt_keypoints):
+        encoded_kps = kp2delta(kp_pos_bboxes, kpos_gt_keypoints, self.means[0:2],
+                                      self.stds[0:2])
+        return encoded_kps
+
+    def kp_decode(self,
+               bboxes,
+               kp_pred,
+               max_shape=None,
+               wh_ratio_clip=16 / 1000):
+
+        decoded_kp = kp_delta2bbox(bboxes, kp_pred, self.means[0:2],
+                                self.stds[0:2], max_shape)
+        return decoded_kp
+
     def decode(self,
                bboxes,
                pred_bboxes,
@@ -113,6 +128,62 @@ class DeltaXYWHBBoxCoder(BaseBBoxCoder):
 
         return decoded_bboxes
 
+
+# 人脸关键点转化为训练数据
+def kp2delta(proposals, gt, means=[0, 0], stds=[1, 1]):
+    assert proposals.size(0) == gt.size(0)
+    proposals = proposals.float()
+    gt = gt.float()
+    px = (proposals[..., 0] + proposals[..., 2]) * 0.5
+    py = (proposals[..., 1] + proposals[..., 3]) * 0.5
+    pw = proposals[..., 2] - proposals[..., 0] + 1.0
+    ph = proposals[..., 3] - proposals[..., 1] + 1.0
+    px = px.view(-1, 1)
+    py = py.view(-1, 1)
+    pw = pw.view(-1, 1)
+    ph = ph.view(-1, 1)
+    gx = gt[:, 0::2]
+    gy = gt[:, 1::2]
+    dx = (gx - px) / pw
+    dy = (gy - py) / ph
+    deltas = torch.stack([dx, dy], dim=-1)
+    means = deltas.new_tensor(means).unsqueeze(0)
+    stds = deltas.new_tensor(stds).unsqueeze(0)
+    deltas = deltas.sub_(means).div_(stds)
+    deltas = deltas.view(deltas.size(0), gt.size(1))
+    return deltas
+
+# 训练数据转化为人脸关键点
+def kp_delta2bbox(rois,
+                  deltas,
+                  means=[0, 0],
+                  stds=[1, 1],
+                  max_shape=None,
+                  wh_ratio_clip=16 / 1000):
+    means = deltas.new_tensor(means).repeat(1, deltas.size(1) // 2)
+    stds = deltas.new_tensor(stds).repeat(1, deltas.size(1) // 2)
+    denorm_deltas = deltas * stds + means
+    dx = denorm_deltas[:, 0::2]
+    dy = denorm_deltas[:, 1::2]
+    max_ratio = np.abs(np.log(wh_ratio_clip))
+    # Compute center of each roi
+    px = ((rois[:, 0] + rois[:, 2]) * 0.5).unsqueeze(1).expand_as(dx)
+    py = ((rois[:, 1] + rois[:, 3]) * 0.5).unsqueeze(1).expand_as(dx)
+    # Compute width/height of each roi
+    pw = (rois[:, 2] - rois[:, 0] + 1.0).unsqueeze(1).expand_as(dx)
+    ph = (rois[:, 3] - rois[:, 1] + 1.0).unsqueeze(1).expand_as(dx)
+    # Use exp(network energy) to enlarge/shrink each roi
+
+    # Use network energy to shift the center of each roi
+    gx = torch.addcmul(px, 1, pw, dx)  # gx = px + pw * dx
+    gy = torch.addcmul(py, 1, ph, dy)  # gy = py + ph * dy
+    # Convert center-xy/width/height to top-left, bottom-right
+
+    if max_shape is not None:
+        x1 = gx.clamp(min=0, max=max_shape[1] - 1)
+        y1 = gy.clamp(min=0, max=max_shape[0] - 1)
+    bboxes = torch.stack([x1, y1], dim=-1).view_as(deltas)
+    return bboxes
 
 @mmcv.jit(coderize=True)
 def bbox2delta(proposals, gt, means=(0., 0., 0., 0.), stds=(1., 1., 1., 1.)):

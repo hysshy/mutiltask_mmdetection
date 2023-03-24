@@ -255,6 +255,16 @@ class Resize:
                 bboxes[:, 1::2] = np.clip(bboxes[:, 1::2], 0, img_shape[0])
             results[key] = bboxes
 
+    #缩放关键点
+    def _resize_keypoints(self, results):
+        if "gt_keypoints" in results.keys():
+            img_shape = results['img_shape']
+            gt_keypoints = results["gt_keypoints"]
+            gt_keypoints = gt_keypoints * results['scale_factor'][0:2]
+            gt_keypoints[:,:,0] = np.clip(gt_keypoints[:,:,0], 0, img_shape[1] - 1)
+            gt_keypoints[:,:,1] = np.clip(gt_keypoints[:,:,1], 0, img_shape[0] - 1)
+            results["gt_keypoints"] = gt_keypoints
+
     def _resize_masks(self, results):
         """Resize masks with ``results['scale']``"""
         for key in results.get('mask_fields', []):
@@ -315,6 +325,7 @@ class Resize:
 
         self._resize_img(results)
         self._resize_bboxes(results)
+        self._resize_keypoints(results)
         self._resize_masks(results)
         self._resize_seg(results)
         return results
@@ -392,6 +403,23 @@ class RandomFlip:
 
         if isinstance(flip_ratio, list):
             assert len(self.flip_ratio) == len(self.direction)
+
+    #关键点对称转换
+    def keypoint_flip(self, keypoints, img_shape):
+        """Flip bboxes horizontally.
+        Args:
+            bboxes(ndarray): shape (..., 4*k)
+            img_shape(tuple): (height, width)
+        """
+        w = img_shape[1]
+        flipped = keypoints.copy()
+        flipped[:,:, 0] = w - flipped[:,:, 0]
+        flipped_copy = flipped.copy()
+        flipped[:,0] = flipped_copy[:,1]
+        flipped[:,1] = flipped_copy[:,0]
+        flipped[:,3] = flipped_copy[:,4]
+        flipped[:,4] = flipped_copy[:,3]
+        return flipped
 
     def bbox_flip(self, bboxes, img_shape, direction):
         """Flip bboxes horizontally.
@@ -480,6 +508,10 @@ class RandomFlip:
             for key in results.get('seg_fields', []):
                 results[key] = mmcv.imflip(
                     results[key], direction=results['flip_direction'])
+
+            # flip keypoints
+            if "gt_keypoints" in results.keys():
+                results["gt_keypoints"] = self.keypoint_flip(results["gt_keypoints"], results['img_shape'])
         return results
 
     def __repr__(self):
@@ -2042,7 +2074,7 @@ class Mosaic:
         results = self._mosaic_transform(results)
         return results
 
-    def get_indexes(self, dataset):
+    def get_indexes(self, dataset, idx=None):
         """Call function to collect indexes.
 
         Args:
@@ -2052,7 +2084,13 @@ class Mosaic:
             list: indexes.
         """
 
-        indexes = [random.randint(0, len(dataset)) for _ in range(3)]
+        if idx is not None:
+            target_rangeIds = dataset.target_rangeIds
+            file_name = dataset[idx]['img_info']['file_name'].split('/')[-2]
+            rangeIds = target_rangeIds[file_name]
+            indexes = [random.choice(rangeIds) for _ in range(3)]
+        else:
+            indexes = [random.randint(0, len(dataset)) for _ in range(3)]
         return indexes
 
     def _mosaic_transform(self, results):
@@ -2068,6 +2106,8 @@ class Mosaic:
         assert 'mix_results' in results
         mosaic_labels = []
         mosaic_bboxes = []
+        # mosaic_gt_keypoints = []
+        # mosaic_gt_visibles = []
         if len(results['img'].shape) == 3:
             mosaic_img = np.full(
                 (int(self.img_scale[0] * 2), int(self.img_scale[1] * 2), 3),
@@ -2113,6 +2153,10 @@ class Mosaic:
             # adjust coordinate
             gt_bboxes_i = results_patch['gt_bboxes']
             gt_labels_i = results_patch['gt_labels']
+            # # adjust faceKp
+            # if "gt_keypoints" in results_patch.keys():
+            #     gt_keypoints_i = results_patch['gt_keypoints']
+            #     gt_visibles_i = results_patch['gt_visibles']
 
             if gt_bboxes_i.shape[0] > 0:
                 padw = x1_p - x1_c
@@ -2121,13 +2165,21 @@ class Mosaic:
                     scale_ratio_i * gt_bboxes_i[:, 0::2] + padw
                 gt_bboxes_i[:, 1::2] = \
                     scale_ratio_i * gt_bboxes_i[:, 1::2] + padh
+                # if "gt_keypoints" in results_patch.keys():
+                #     gt_keypoints_i[:, :, 0] = gt_keypoints_i[:, :, 0] * scale_ratio_i + padw
+                #     gt_keypoints_i[:, :, 1] = gt_keypoints_i[:, :, 1] * scale_ratio_i + padh
 
             mosaic_bboxes.append(gt_bboxes_i)
             mosaic_labels.append(gt_labels_i)
+            # if "gt_keypoints" in results_patch.keys():
+            #     mosaic_gt_keypoints.append(gt_keypoints_i)
+            #     mosaic_gt_visibles.append(gt_visibles_i)
 
         if len(mosaic_labels) > 0:
             mosaic_bboxes = np.concatenate(mosaic_bboxes, 0)
             mosaic_labels = np.concatenate(mosaic_labels, 0)
+            # mosaic_gt_keypoints = np.concatenate(mosaic_gt_keypoints, 0)
+            # mosaic_gt_visibles = np.concatenate(mosaic_gt_visibles, 0)
 
             if self.bbox_clip_border:
                 mosaic_bboxes[:, 0::2] = np.clip(mosaic_bboxes[:, 0::2], 0,
@@ -2326,7 +2378,7 @@ class MixUp:
         results = self._mixup_transform(results)
         return results
 
-    def get_indexes(self, dataset):
+    def get_indexes(self, dataset, idx=None):
         """Call function to collect indexes.
 
         Args:
@@ -2337,7 +2389,14 @@ class MixUp:
         """
 
         for i in range(self.max_iters):
-            index = random.randint(0, len(dataset))
+            if idx is not None:
+                rangeIds = []
+                target_rangeIds = dataset.target_rangeIds
+                file_name = dataset[idx]['img_info']['file_name'].split('/')[-2]
+                rangeIds = target_rangeIds[file_name]
+                index = random.choice(rangeIds)
+            else:
+                index = random.randint(0, len(dataset))
             gt_bboxes_i = dataset.get_ann_info(index)['bboxes']
             if len(gt_bboxes_i) != 0:
                 break
@@ -2594,7 +2653,6 @@ class RandomAffine:
 
         warp_matrix = (
             translate_matrix @ shear_matrix @ rotation_matrix @ scaling_matrix)
-
         img = cv2.warpPerspective(
             img,
             warp_matrix,

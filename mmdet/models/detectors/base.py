@@ -351,7 +351,7 @@ class BaseDetector(BaseModule, metaclass=ABCMeta):
             show=show,
             wait_time=wait_time,
             out_file=out_file)
-
+        return img
         if not (show or out_file):
             return img
 

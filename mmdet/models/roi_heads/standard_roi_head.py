@@ -51,6 +51,60 @@ class StandardRoIHead(BaseRoIHead, BBoxTestMixin, MaskTestMixin):
             outs = outs + (mask_results['mask_pred'], )
         return outs
 
+
+    #人脸关键点前馈训练
+    def kp_forward_train(self,
+                      x,
+                      img_metas,
+                      gt_keypoints,
+                      gt_bboxes):
+        losses = dict()
+        kp_loss = self._kp_forward_train(x, gt_bboxes, gt_keypoints, img_metas)
+        losses.update(kp_loss)
+        return losses
+
+
+    #只分类前馈训练
+    def cls_forward_train(self,
+                      x,
+                      img_metas,
+                      proposal_list,
+                      gt_bboxes,
+                      gt_labels,
+                      gt_bboxes_ignore=None):
+
+        num_imgs = len(img_metas)
+        if gt_bboxes_ignore is None:
+            gt_bboxes_ignore = [None for _ in range(num_imgs)]
+        sampling_results = []
+        for i in range(num_imgs):
+            assign_result = self.bbox_assigner.assign(
+                proposal_list[i], gt_bboxes[i], gt_bboxes_ignore[i],
+                gt_labels[i])
+            sampling_result = self.bbox_sampler.sample(
+                assign_result,
+                proposal_list[i],
+                gt_bboxes[i],
+                gt_labels[i],
+                feats=[lvl_feat[i][None] for lvl_feat in x])
+            sampling_results.append(sampling_result)
+
+        losses = dict()
+        cls_loss = self._cls_forward_train(x, sampling_results, gt_bboxes, gt_labels, img_metas)
+        losses.update(cls_loss)
+        return losses
+
+    #人脸质量评估前馈训练
+    def qt_forward_train(self,
+                      x,
+                      img_metas,
+                      gt_labels,
+                      gt_bboxes):
+        losses = dict()
+        qt_loss = self._qt_forward_train(x, gt_bboxes, gt_labels, img_metas)
+        losses.update(qt_loss)
+        return losses
+
     def forward_train(self,
                       x,
                       img_metas,
@@ -127,6 +181,67 @@ class StandardRoIHead(BaseRoIHead, BBoxTestMixin, MaskTestMixin):
         bbox_results = dict(
             cls_score=cls_score, bbox_pred=bbox_pred, bbox_feats=bbox_feats)
         return bbox_results
+
+    #人脸关键点特征计算
+    def _kp_forward(self, x, rois):
+        bbox_feats = self.bbox_roi_extractor(
+            x[:self.bbox_roi_extractor.num_inputs], rois)
+        if self.with_shared_head:
+            bbox_feats = self.shared_head(bbox_feats)
+        kp_pred = self.bbox_head.forward_kp(bbox_feats)
+        return kp_pred
+
+    #只分类特征计算
+    def _cls_forward(self, x, rois):
+        bbox_feats = self.bbox_roi_extractor(
+            x[:self.bbox_roi_extractor.num_inputs], rois)
+        if self.with_shared_head:
+            bbox_feats = self.shared_head(bbox_feats)
+        cls_pred = self.bbox_head.forward_cls(bbox_feats)
+        return cls_pred
+
+    #人脸质量评估特征计算
+    def _qt_forward(self, x, rois):
+        bbox_feats = self.bbox_roi_extractor(
+            x[:self.bbox_roi_extractor.num_inputs], rois)
+        if self.with_shared_head:
+            bbox_feats = self.shared_head(bbox_feats)
+        qt_pred = self.bbox_head.forward_faceQt(bbox_feats)
+        return qt_pred
+
+    #只人脸关键点前馈训练
+    def _kp_forward_train(self, x, gt_bboxes, gt_keypoints, img_meta):
+        kp_rois = bbox2roi(gt_bboxes)
+        kp_pred = self._kp_forward(x, kp_rois)
+        kp_targets, kp_weights = self.bbox_head.get_kp_targets(gt_bboxes, self.train_cfg, gt_keypoints = gt_keypoints, img_meta = img_meta)
+        kp_loss = self.bbox_head.kp_loss(  # 计算bbox损失
+            kp_pred,
+            kp_targets,
+            kp_weights)
+        return kp_loss
+
+    #只分类前馈训练
+    def _cls_forward_train(self, x, sampling_results, gt_bboxes, gt_labels, img_meta):
+        rois = bbox2roi([res.bboxes for res in sampling_results])
+        cls_score = self._cls_forward(x, rois)
+        labels, label_weights, _, _ = self.bbox_head.get_targets(sampling_results, gt_bboxes,
+                                                  gt_labels, self.train_cfg)
+        cls_loss = self.bbox_head.cls_loss(
+            cls_score,
+            labels,
+            label_weights)
+        return cls_loss
+
+    #只人脸质量评估前馈训练
+    def _qt_forward_train(self, x, gt_bboxes, gt_labels, img_meta):
+        qt_rois = bbox2roi(gt_bboxes)
+        qt_pred = self._qt_forward(x, qt_rois)
+        qt_targets, qt_weights = self.bbox_head.get_qt_targets(gt_labels)
+        qt_loss = self.bbox_head.qt_loss(  # 计算bbox损失
+            qt_pred,
+            qt_targets,
+            qt_weights)
+        return qt_loss
 
     def _bbox_forward_train(self, x, sampling_results, gt_bboxes, gt_labels,
                             img_metas):
@@ -220,12 +335,59 @@ class StandardRoIHead(BaseRoIHead, BBoxTestMixin, MaskTestMixin):
                 mask_test_cfg=self.test_cfg.get('mask'))
             return bbox_results, segm_results
 
+    # 人脸关键点检测
+    def simple_hy_kp_test(self,
+                          x,
+                          face_bboxes,
+                          img_metas,
+                          rescale=False):
+        """Test without augmentation."""
+        kp = torch.full([0, int(self.bbox_head.kpNum / 2), 2], 0).type_as(face_bboxes)
+        if face_bboxes.size(0) > 0:
+            scale_factor = img_metas[0]["scale_factor"]
+            scale_factor = torch.tensor(scale_factor).type_as(face_bboxes)
+            face_bboxes[:, 0:4] *= scale_factor
+            kp = self.simple_test_kp_bboxes(
+                x, img_metas, face_bboxes, rescale=rescale)
+        return kp
+
+    #只分类检测
+    def simple_cls_test(self,
+                    x,
+                    pred_bboxes,
+                    img_metas):
+        """Test without augmentation."""
+        det_labels = torch.full([0],0).type_as(pred_bboxes)
+        if pred_bboxes.size(0) > 0:
+            scale_factor = img_metas[0]["scale_factor"]
+            scale_factor = torch.tensor(scale_factor).type_as(pred_bboxes)
+            pred_bboxes[:,0:4] *= scale_factor
+            det_labels = self.simple_test_cls(x, pred_bboxes)
+        return det_labels
+
+    #人脸质量评估检测
+    def simple_hy_qt_test(self,
+                    x,
+                    face_bboxes,
+                    img_metas,
+                    rescale=False):
+        """Test without augmentation."""
+        qt = torch.full([0, 1, 1],0).type_as(face_bboxes)
+        if face_bboxes.size(0) > 0:
+            scale_factor = img_metas[0]["scale_factor"]
+            scale_factor = torch.tensor(scale_factor).type_as(face_bboxes)
+            face_bboxes[:,0:4] *= scale_factor
+            qt = self.simple_test_qt_bboxes(
+                x, img_metas, face_bboxes, rescale=rescale)
+        return qt
+
     def simple_test(self,
                     x,
                     proposal_list,
                     img_metas,
                     proposals=None,
-                    rescale=False):
+                    rescale=False,
+                    ifdet = False):
         """Test without augmentation.
 
         Args:
@@ -252,7 +414,8 @@ class StandardRoIHead(BaseRoIHead, BBoxTestMixin, MaskTestMixin):
 
         det_bboxes, det_labels = self.simple_test_bboxes(
             x, img_metas, proposal_list, self.test_cfg, rescale=rescale)
-
+        if ifdet:
+            return det_bboxes[0], det_labels[0]
         bbox_results = [
             bbox2result(det_bboxes[i], det_labels[i],
                         self.bbox_head.num_classes)

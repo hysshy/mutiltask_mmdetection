@@ -314,6 +314,18 @@ class LoadAnnotations:
         mask = maskUtils.decode(rle)
         return mask
 
+    #加载关键点
+    def _load_keypoints(self, results):
+        ann_info = results['ann_info']
+        results['gt_keypoints'] = ann_info['keypoints']
+        return results
+
+    #加载可见度
+    def _load_visible(self, results):
+        ann_info = results['ann_info']
+        results['gt_visibles'] = ann_info['gt_visibles']
+        return results
+
     def process_polygons(self, polygons):
         """Convert polygons to list of ndarray and filter invalid polygons.
 
@@ -398,6 +410,11 @@ class LoadAnnotations:
             results = self._load_masks(results)
         if self.with_seg:
             results = self._load_semantic_seg(results)
+        # 如果数据集中有 keypoints， gt_visibles 关键字则加载
+        if "keypoints" in results["ann_info"].keys():
+            results = self._load_keypoints(results)
+        if "gt_visibles" in results["ann_info"].keys():
+            results = self._load_visible(results)
         return results
 
     def __repr__(self):

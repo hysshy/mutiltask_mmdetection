@@ -20,6 +20,9 @@ class BBoxHead(BaseModule):
                  with_avg_pool=False,
                  with_cls=True,
                  with_reg=True,
+                 with_faceKp=False,
+                 kpNum=10,
+                 with_background=True,
                  roi_feat_size=7,
                  in_channels=256,
                  num_classes=80,
@@ -40,10 +43,13 @@ class BBoxHead(BaseModule):
                      type='SmoothL1Loss', beta=1.0, loss_weight=1.0),
                  init_cfg=None):
         super(BBoxHead, self).__init__(init_cfg)
-        assert with_cls or with_reg
+        # assert with_cls or with_reg
         self.with_avg_pool = with_avg_pool
         self.with_cls = with_cls
         self.with_reg = with_reg
+        self.with_faceKp = with_faceKp
+        self.kpNum = kpNum
+        self.with_background = with_background
         self.roi_feat_size = _pair(roi_feat_size)
         self.roi_feat_area = self.roi_feat_size[0] * self.roi_feat_size[1]
         self.in_channels = in_channels
@@ -79,6 +85,7 @@ class BBoxHead(BaseModule):
                 self.reg_predictor_cfg,
                 in_features=in_channels,
                 out_features=out_dim_reg)
+
         self.debug_imgs = None
         if init_cfg is None:
             self.init_cfg = []
@@ -253,6 +260,67 @@ class BBoxHead(BaseModule):
             bbox_weights = torch.cat(bbox_weights, 0)
         return labels, label_weights, bbox_targets, bbox_weights
 
+    def get_qt_targets(self, gt_labels):
+        labels = torch.cat(gt_labels, 0)
+        labels = labels.view(len(labels), 1)
+        labels_weights = torch.ones_like(labels)
+        return labels, labels_weights
+
+    # 关键点训练目标框
+    def _get_kp_target_single(
+            self,
+            gt_bboxes,
+            pos_gt_keypoints):
+        num_samples = gt_bboxes.size(0)
+        kp_targets = gt_bboxes.new_zeros(num_samples, self.kpNum)
+        kp_weights = gt_bboxes.new_zeros(num_samples, self.kpNum)
+        if num_samples > 0:
+            kpos_inds = torch.ne(pos_gt_keypoints[:, 0], -1)
+            kp_pos_bboxes = gt_bboxes[kpos_inds]
+            kpos_gt_keypoints = pos_gt_keypoints[kpos_inds]
+            pos_kp_targets = self.bbox_coder.kp_encode(kp_pos_bboxes, kpos_gt_keypoints)
+            kp_targets[:pos_kp_targets.size(0), :] = pos_kp_targets
+            kp_weights[:pos_kp_targets.size(0), :] = 1
+        return kp_targets, kp_weights
+
+    #获得人脸关键点的训练目标
+    def get_kp_targets(self, gt_bboxes,
+                   rcnn_train_cfg,
+                   gt_keypoints = None,
+                   img_meta = None):
+        pos_gt_keypoints =[]
+        for img_i in range(len(gt_bboxes)):
+            bboxes = gt_bboxes[img_i]
+            keypoints = gt_keypoints[img_i]
+            assert len(bboxes) == len(keypoints)
+            pos_gt_keypoint = []
+            for gt_i in range(len(bboxes)):
+                bbox = bboxes[gt_i]
+                iflm = False
+                keypoint = keypoints[gt_i]
+                gtkp = []
+                for i in range(len(keypoint)):
+                    if not(keypoint[i][0] >= (bbox[0]-1) and keypoint[i][0] <= (bbox[2]+1) and keypoint[i][1] >= (bbox[1]-1) and keypoint[i][1] <= (bbox[3]+1)):
+                        print(keypoint)
+                        print(bbox)
+                        assert False
+                    gtkp.append(keypoint[i])
+                keypoint = torch.cat(gtkp).view(1,self.kpNum)
+                pos_gt_keypoint.append(keypoint)
+                # if  not iflm:
+                #     print("bbox_head.get_kp_target wrong",img_meta[0]['filename'])
+                #     pos_gt_keypoint.append(keypoint.new_full((1,self.kpNum),fill_value=-1))
+
+            pos_gt_keypoint = torch.cat(pos_gt_keypoint)
+            pos_gt_keypoints.append(pos_gt_keypoint)
+        kp_targets, kp_weights = multi_apply(
+            self._get_kp_target_single,
+            gt_bboxes,
+            pos_gt_keypoints)
+        kp_targets = torch.cat(kp_targets, 0)
+        kp_weights = torch.cat(kp_weights, 0)
+        return kp_targets, kp_weights
+
     @force_fp32(apply_to=('cls_score', 'bbox_pred'))
     def loss(self,
              cls_score,
@@ -310,6 +378,69 @@ class BBoxHead(BaseModule):
                     reduction_override=reduction_override)
             else:
                 losses['loss_bbox'] = bbox_pred[pos_inds].sum()
+        return losses
+
+    #关键点损失计算
+    @force_fp32(apply_to=('kp_pred'))
+    def kp_loss(self,
+             kp_pred,
+             kp_targets,
+             kp_weights,
+             reduction_override = None):
+        losses = dict()
+        pos_kp_pred = kp_pred.view(kp_pred.size(0), self.kpNum)
+        losses['loss_kp'] = self.loss_bbox(  # 计算bbox损失
+            pos_kp_pred,
+            kp_targets,
+            kp_weights,
+            avg_factor=kp_targets.size(0),
+            reduction_override=reduction_override) * 0.005
+        return losses
+
+
+    #只分类损失计算
+    @force_fp32(apply_to=('cls_pred'))
+    def cls_loss(self,
+             cls_score,
+             labels,
+             label_weights,
+             reduction_override=None):
+        losses = dict()
+        avg_factor = max(torch.sum(label_weights > 0).float().item(), 1.)
+
+        #只分类有效标签
+        if not self.with_background:
+            _index = torch.lt(labels, self.num_classes)
+            cls_score = cls_score[_index]
+            labels = labels[_index]
+            label_weights = label_weights[_index]
+        # avg_factor = max(torch.sum(label_weights > 0).float().item(), 1.)
+        if cls_score.numel() > 0:
+            losses['loss_cls'] = self.loss_cls(
+                cls_score,
+                labels,
+                label_weights,
+                avg_factor=avg_factor,
+                reduction_override=reduction_override) *0.1
+            losses['acc'] = accuracy(cls_score, labels)
+        return losses
+
+
+    #人脸质量评估损失计算
+    @force_fp32(apply_to=('kp_pred'))
+    def qt_loss(self,
+             qt_pred,
+             qt_targets,
+             qt_weights,
+             reduction_override = None):
+        losses = dict()
+        pos_qt_pred = qt_pred.view(qt_pred.size(0), 1)
+        losses['loss_qt'] = self.loss_bbox(  # 计算bbox损失
+            pos_qt_pred,
+            qt_targets,
+            qt_weights,
+            avg_factor=qt_targets.size(0),
+            reduction_override=reduction_override) * 0.5
         return losses
 
     @force_fp32(apply_to=('cls_score', 'bbox_pred'))
@@ -376,6 +507,21 @@ class BBoxHead(BaseModule):
                                                     cfg.max_per_img)
 
             return det_bboxes, det_labels
+
+    #检测结果生成人脸关键点坐标
+    @force_fp32(apply_to=('kp_pred'))
+    def get_kps(self,
+               face_bboxes,
+               kp_pred,
+               img_shape,
+               scale_factor,
+               rescale=False):
+        kp = self.bbox_coder.kp_decode(
+            face_bboxes[:, 1:], kp_pred, max_shape=img_shape)
+        kp = kp.view(-1, int(self.kpNum/2), 2)
+        if rescale:
+            kp /= scale_factor[0:2]
+        return kp
 
     @force_fp32(apply_to=('bbox_preds', ))
     def refine_bboxes(self, rois, labels, bbox_preds, pos_is_gts, img_metas):

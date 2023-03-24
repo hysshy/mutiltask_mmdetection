@@ -14,7 +14,7 @@ if sys.version_info >= (3, 7):
 class BBoxTestMixin(object):
     """Mixin class for testing det bboxes via DenseHead."""
 
-    def simple_test_bboxes(self, feats, img_metas, rescale=False):
+    def simple_test_bboxes(self, feats, img_metas, rescale=False, getKeep=False):
         """Test det bboxes without test-time augmentation, can be applied in
         DenseHead except for ``RPNHead`` and its variants, e.g., ``GARPNHead``,
         etc.
@@ -35,7 +35,33 @@ class BBoxTestMixin(object):
         """
         outs = self.forward(feats)
         results_list = self.get_bboxes(
-            *outs, img_metas=img_metas, rescale=rescale)
+            *outs, img_metas=img_metas, rescale=rescale, getKeep=getKeep)
+        return results_list
+
+    # 人脸关键点检测
+    def simple_test_kps(self, feats, face_bboxes, valid_mask, keep, face_index, img_metas, rescale=False):
+        kp = torch.full([0, 5, 2], 0).type_as(face_bboxes)
+        if face_bboxes.size(0) > 0:
+            scale_factor = img_metas[0]["scale_factor"]
+            scale_factor = torch.tensor(scale_factor).type_as(face_bboxes)
+            face_bboxes[:, 0:4] *= scale_factor
+            kp_rois = face_bboxes[:, [4, 0, 1, 2, 3]]
+            kp_rois[:, 0] = 0
+            outs = self.forward_facekp(feats)
+            kp = self.get_kps(
+                *outs, kp_rois, valid_mask, keep, face_index, img_metas=img_metas, rescale=rescale)
+        return kp
+
+    # 人脸姿态分类
+    def simple_test_facezitai(self, feats, valid_mask, keep, face_index, img_metas):
+        outs = self.forward_facezitai_intest(feats)[0]
+        results_list = self.get_facezitai(outs, valid_mask, keep,face_index,img_metas=img_metas)
+        return results_list
+
+    # 人脸模糊评估分类
+    def simple_test_facemohu(self, feats, valid_mask, keep, face_index, img_metas):
+        outs = self.forward_facemohu(feats)[0]
+        results_list = self.get_facemohu(outs, valid_mask, keep,face_index,img_metas=img_metas)
         return results_list
 
     def aug_test_bboxes(self, feats, img_metas, rescale=False):

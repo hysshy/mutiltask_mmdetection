@@ -79,11 +79,17 @@ class ConvFCBBoxHead(BBoxHead):
 
         self.relu = nn.ReLU(inplace=True)
         # reconstruct fc_cls and fc_reg since input channels are changed
+        if self.with_faceKp:
+            #人脸关键点全连接层
+            self.kp_reg = nn.Linear(self.reg_last_dim, self.kpNum)
+
         if self.with_cls:
             if self.custom_cls_channels:
                 cls_channels = self.loss_cls.get_cls_channels(self.num_classes)
             else:
                 cls_channels = self.num_classes + 1
+            if not self.with_background:
+                cls_channels -= 1
             self.fc_cls = build_linear_layer(
                 self.cls_predictor_cfg,
                 in_features=self.cls_last_dim,
@@ -95,6 +101,7 @@ class ConvFCBBoxHead(BBoxHead):
                 self.reg_predictor_cfg,
                 in_features=self.reg_last_dim,
                 out_features=out_dim_reg)
+        self.gap3d = nn.AdaptiveAvgPool3d(1)
 
         if init_cfg is None:
             # when init_cfg is None,
@@ -156,6 +163,61 @@ class ConvFCBBoxHead(BBoxHead):
             last_layer_dim = self.fc_out_channels
         return branch_convs, branch_fcs, last_layer_dim
 
+    # 人脸关键点预测 前馈
+    def forward_kp(self, x):
+        # shared part
+        if self.num_shared_convs > 0:
+            for conv in self.shared_convs:
+                x = conv(x)
+
+        if self.num_shared_fcs > 0:
+            if self.with_avg_pool:
+                x = self.avg_pool(x)
+            x = x.flatten(1)
+            for fc in self.shared_fcs:
+                x = self.relu(fc(x))
+
+        kp_pred = self.kp_reg(x)
+        return kp_pred
+
+    # 只分类网络前馈 前馈
+    def forward_cls(self, x):
+        # shared part
+        if self.num_shared_convs > 0:
+            for conv in self.shared_convs:
+                x = conv(x)
+
+        if self.num_shared_fcs > 0:
+            if self.with_avg_pool:
+                x = self.avg_pool(x)
+
+            x = x.flatten(1)
+            for fc in self.shared_fcs:
+                x = self.relu(fc(x))
+        # separate branches
+        x_cls = x
+        for conv in self.cls_convs:
+            x_cls = conv(x_cls)
+        if x_cls.dim() > 2:
+            if self.with_avg_pool:
+                x_cls = self.avg_pool(x_cls)
+            x_cls = x_cls.flatten(1)
+        for fc in self.cls_fcs:
+            x_cls = self.relu(fc(x_cls))
+
+        cls_score = self.fc_cls(x_cls) if self.with_cls else None
+        return cls_score
+
+    #人脸质量评估训练前馈
+    def forward_faceQt(self, x):
+        if self.num_shared_convs > 0:
+            for conv in self.shared_convs:
+                x = conv(x)
+        # x = self.bottleneck(x)
+        global_feat = self.gap3d(x)
+        feat = global_feat.view(global_feat.shape[0], -1)
+        return feat
+
     def forward(self, x):
         # shared part
         if self.num_shared_convs > 0:
@@ -201,9 +263,17 @@ class ConvFCBBoxHead(BBoxHead):
 class Shared2FCBBoxHead(ConvFCBBoxHead):
 
     def __init__(self, fc_out_channels=1024, *args, **kwargs):
+        if "num_shared_convs" in kwargs.keys():
+            num_shared_convs = kwargs.pop("num_shared_convs")
+        else:
+            num_shared_convs = 0
+        if "num_shared_fs" in kwargs.keys():
+            num_shared_fs = kwargs.pop("num_shared_fs")
+        else:
+            num_shared_fs = 2
         super(Shared2FCBBoxHead, self).__init__(
-            num_shared_convs=0,
-            num_shared_fcs=2,
+            num_shared_convs=num_shared_convs,
+            num_shared_fcs=num_shared_fs,
             num_cls_convs=0,
             num_cls_fcs=0,
             num_reg_convs=0,

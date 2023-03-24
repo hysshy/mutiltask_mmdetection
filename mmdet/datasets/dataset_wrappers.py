@@ -3,6 +3,7 @@ import bisect
 import collections
 import copy
 import math
+import time
 from collections import defaultdict
 
 import numpy as np
@@ -394,6 +395,9 @@ class MultiImageMixDataset:
             self.flag = dataset.flag
         self.num_samples = len(dataset)
         self.max_refetch = max_refetch
+        self.skip_transform_keys = {'faceKpimages':['Mosaic', 'RandomAffine', 'MixUp', 'RandomFlip'],
+                                    'faceZitaiImgs':['MixUp', 'RandomAffine','RandomFlip', 'FilterAnnotations'],
+                                    'faceMohuImgs':['Mosaic', 'MixUp', 'RandomAffine', 'YOLOXHSVRandomAug', 'FilterAnnotations']}
 
     def __len__(self):
         return self.num_samples
@@ -405,12 +409,17 @@ class MultiImageMixDataset:
             if self._skip_type_keys is not None and \
                     transform_type in self._skip_type_keys:
                 continue
+            if results['img_info']['file_name'].split('/')[-2] in self.skip_transform_keys.keys() :
+                results['flip'] = False
+                results['flip_direction'] = None
+                if transform_type in self.skip_transform_keys[results['img_info']['file_name'].split('/')[-2]]:
+                    continue
 
             if hasattr(transform, 'get_indexes'):
                 for i in range(self.max_refetch):
                     # Make sure the results passed the loading pipeline
                     # of the original dataset is not None.
-                    indexes = transform.get_indexes(self.dataset)
+                    indexes = transform.get_indexes(self.dataset, idx=idx)
                     if not isinstance(indexes, collections.abc.Sequence):
                         indexes = [indexes]
                     mix_results = [

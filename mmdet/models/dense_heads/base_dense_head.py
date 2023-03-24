@@ -307,6 +307,7 @@ class BaseDenseHead(BaseModule, metaclass=ABCMeta):
                       gt_labels=None,
                       gt_bboxes_ignore=None,
                       proposal_cfg=None,
+                      ifloss = True,
                       **kwargs):
         """
         Args:
@@ -332,7 +333,9 @@ class BaseDenseHead(BaseModule, metaclass=ABCMeta):
             loss_inputs = outs + (gt_bboxes, img_metas)
         else:
             loss_inputs = outs + (gt_bboxes, gt_labels, img_metas)
-        losses = self.loss(*loss_inputs, gt_bboxes_ignore=gt_bboxes_ignore)
+        losses = None
+        if ifloss:
+            losses = self.loss(*loss_inputs, gt_bboxes_ignore=gt_bboxes_ignore)
         if proposal_cfg is None:
             return losses
         else:
@@ -340,7 +343,65 @@ class BaseDenseHead(BaseModule, metaclass=ABCMeta):
                 *outs, img_metas=img_metas, cfg=proposal_cfg)
             return losses, proposal_list
 
-    def simple_test(self, feats, img_metas, rescale=False):
+    def facezitai_forward_train(self,
+                      x,
+                      img_metas,
+                      gt_bboxes,
+                      gt_labels=None,
+                      gt_bboxes_ignore=None):
+
+        outs = self.forward_facezitai(x)
+        if gt_labels is None:
+            loss_inputs = outs + (gt_bboxes, img_metas)
+        else:
+            loss_inputs = outs + (gt_bboxes, gt_labels, img_metas)
+        losses = self.facezitai_loss(*loss_inputs, gt_bboxes_ignore=gt_bboxes_ignore)
+        return losses
+
+    def bodydetect_forward_train(self,
+                      x,
+                      img_metas,
+                      gt_bboxes,
+                      gt_labels,
+                      gt_bboxes_ignore=None):
+        outs = self.forward_facezitai(x)
+        if gt_labels is None:
+            loss_inputs = outs + (gt_bboxes, img_metas)
+        else:
+            loss_inputs = outs + (gt_bboxes, gt_labels, img_metas)
+        losses = self.facezitai_loss(*loss_inputs, gt_bboxes_ignore=gt_bboxes_ignore)
+        return losses
+
+    def facemohu_forward_train(self,
+                      x,
+                      img_metas,
+                      gt_bboxes,
+                      gt_labels,
+                      gt_mohus,
+                      gt_bboxes_ignore=None):
+        outs_1 = self(x)
+        outs_2 = self.forward_facemohu(x)
+        outs = outs_1 + outs_2
+        loss_inputs = outs + (gt_bboxes, gt_labels, gt_mohus, img_metas, gt_bboxes_ignore)
+        losses = self.facemohu_loss(*loss_inputs)
+        return losses
+
+    def kp_forward_train(self,
+                      x,
+                      img_metas,
+                      gt_bboxes,
+                      gt_labels,
+                      gt_keypoints,
+                      gt_bboxes_ignore):
+        outs_1 = self(x)
+        outs_2 = self.forward_facekp(x)
+        outs = outs_1 + outs_2
+        loss_inputs = outs + (gt_bboxes, gt_labels, gt_keypoints, img_metas, gt_bboxes_ignore)
+        losses = self.kp_loss(*loss_inputs)
+        return losses
+
+
+    def simple_test(self, feats, img_metas, rescale=False, getKeep=False):
         """Test function without test-time augmentation.
 
         Args:
@@ -357,7 +418,7 @@ class BaseDenseHead(BaseModule, metaclass=ABCMeta):
                 The shape of the second tensor in the tuple is ``labels``
                 with shape (n, ).
         """
-        return self.simple_test_bboxes(feats, img_metas, rescale=rescale)
+        return self.simple_test_bboxes(feats, img_metas, rescale=rescale, getKeep=getKeep)
 
     @force_fp32(apply_to=('cls_scores', 'bbox_preds'))
     def onnx_export(self,

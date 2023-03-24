@@ -1,7 +1,7 @@
 # Copyright (c) OpenMMLab. All rights reserved.
 import sys
 import warnings
-
+import torch.nn.functional as F
 import numpy as np
 import torch
 
@@ -134,6 +134,54 @@ class BBoxTestMixin:
             det_bboxes.append(det_bbox)
             det_labels.append(det_label)
         return det_bboxes, det_labels
+
+    # 只分类
+    def simple_test_cls(self,
+                           x,
+                           pred_bboxes):
+        rois = pred_bboxes[:, [4, 0, 1, 2, 3]]
+        rois[:, 0] = 0
+        cls_score = self._cls_forward(x, rois)
+        if isinstance(cls_score, list):
+            cls_score = sum(cls_score) / float(len(cls_score))
+        scores = F.softmax(cls_score, dim=1) if cls_score is not None else None
+        labels = torch.argmax(scores, 1)
+        return labels
+
+    #人脸关键点检测
+    def simple_test_kp_bboxes(self,
+                           x,
+                           img_metas,
+                           face_bboxes,
+                           rescale=False):
+        """Test only det bboxes without augmentation."""
+
+        #检测人脸关键点
+        kp_rois = face_bboxes[:, [4, 0, 1, 2, 3]]
+        kp_rois[:, 0] = 0
+        kp_pred = self._kp_forward(x, kp_rois)
+        scale_factor = img_metas[0]["scale_factor"]
+        scale_factor = torch.tensor(scale_factor).type_as(face_bboxes)
+        kp = self.bbox_head.get_kps(
+            kp_rois,
+            kp_pred,
+            img_metas[0]['img_shape'],
+            scale_factor,
+            rescale=rescale
+        )
+        return kp
+
+    #人脸质量评估
+    def simple_test_qt_bboxes(self,
+                           x,
+                           img_metas,
+                           face_bboxes,
+                           rescale=False):
+        """Test only det bboxes without augmentation."""
+        qt_rois = face_bboxes[:, [4, 0, 1, 2, 3]]
+        qt_rois[:, 0] = 0
+        qt_pred = self._qt_forward(x, qt_rois)
+        return qt_pred
 
     def aug_test_bboxes(self, feats, img_metas, proposal_list, rcnn_test_cfg):
         """Test det bboxes with test time augmentation."""
