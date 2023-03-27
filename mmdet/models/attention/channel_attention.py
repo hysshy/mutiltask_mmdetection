@@ -13,7 +13,10 @@ class ChannelAttention(nn.Module):
         self.sigmoid = nn.Sigmoid()
 
     def forward(self, x):
-        avg_out = self.fc2(self.relu(self.fc1(self.avg_pool(x))))
-        max_out = self.fc2(self.relu(self.fc1(self.max_pool(x))))
-        out = avg_out + max_out
-        return x * self.sigmoid(out)
+        x = list(x)
+        for i in range(5):
+            avg_out = self.fc2(self.relu(self.fc1(self.avg_pool(x[i]))))
+            max_out = self.fc2(self.relu(self.fc1(self.max_pool(x[i]))))
+            out = avg_out + max_out
+            x[i] = x[i] * self.sigmoid(out)
+        return x
