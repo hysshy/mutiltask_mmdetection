@@ -4,6 +4,7 @@ from mmcv.runner import force_fp32
 from mmdet.models.attention.cba_attention import CBAM
 from mmdet.models.attention.channel_attention import ChannelAttention
 from mmdet.models.attention.attention_consider import AttentionCondenser
+from mmdet.models.attention.generalizedAttention import GeneralizedAttention
 from mmdet.models.builder import ROI_EXTRACTORS
 from .base_roi_extractor import BaseRoIExtractor
 
@@ -43,6 +44,8 @@ class SingleRoIExtractor(BaseRoIExtractor):
             self.attention = ChannelAttention(256)
         elif self.with_attention == 'AttentionCondenser':
             self.attention = AttentionCondenser(in_channels=256, out_channels=256)
+        elif self.with_attention == 'GeneralizedAttention':
+            self.attention = GeneralizedAttention(in_channels=256,num_heads=8, attention_type='0010')
 
     def map_roi_levels(self, rois, num_levels):
         """Map rois to corresponding feature levels by scales.
