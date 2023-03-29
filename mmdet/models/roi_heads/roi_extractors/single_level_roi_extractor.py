@@ -1,7 +1,8 @@
 # Copyright (c) OpenMMLab. All rights reserved.
 import torch
 from mmcv.runner import force_fp32
-
+from mmdet.models.attention.cba_attention import CBAM
+from mmdet.models.attention.channel_attention import ChannelAttention
 from mmdet.models.builder import ROI_EXTRACTORS
 from .base_roi_extractor import BaseRoIExtractor
 
@@ -28,10 +29,17 @@ class SingleRoIExtractor(BaseRoIExtractor):
                  out_channels,
                  featmap_strides,
                  finest_scale=56,
-                 init_cfg=None):
+                 init_cfg=None,
+                 with_attention=None):
         super(SingleRoIExtractor, self).__init__(roi_layer, out_channels,
                                                  featmap_strides, init_cfg)
         self.finest_scale = finest_scale
+        self.with_attention = with_attention
+        if self.with_attention == 'CBAM':
+            #RCNN前增加注意力：
+            self.attention = CBAM(256)
+        elif self.with_attention == 'ChannelAttention':
+            self.attention = ChannelAttention(256)
 
     def map_roi_levels(self, rois, num_levels):
         """Map rois to corresponding feature levels by scales.
@@ -57,6 +65,8 @@ class SingleRoIExtractor(BaseRoIExtractor):
     @force_fp32(apply_to=('feats', ), out_fp16=True)
     def forward(self, feats, rois, roi_scale_factor=None):
         """Forward function."""
+        if self.with_attention is not None:
+            feats = self.attention(feats)
         out_size = self.roi_layers[0].output_size
         num_levels = len(feats)
         expand_dims = (-1, self.out_channels * out_size[0] * out_size[1])

@@ -6,6 +6,7 @@ from mmdet.models.builder import HEADS
 from mmdet.models.utils import build_linear_layer
 from .bbox_head import BBoxHead
 from mmdet.models.attention.cba_attention import CBAM
+from mmdet.models.attention.channel_attention import ChannelAttention
 
 
 @HEADS.register_module()
@@ -106,9 +107,11 @@ class ConvFCBBoxHead(BBoxHead):
         self.gap3d = nn.AdaptiveAvgPool3d(1)
 
         self.with_attention = with_attention
-        if self.with_attention is not None:
+        if self.with_attention == 'CBAM':
             #RCNN前增加注意力：
-            self.cbam = CBAM(256)
+            self.attention = CBAM(256)
+        elif self.with_attention == 'ChannelAttention':
+            self.attention = ChannelAttention(256)
 
         if init_cfg is None:
             # when init_cfg is None,
@@ -174,7 +177,7 @@ class ConvFCBBoxHead(BBoxHead):
     def forward_kp(self, x):
         # shared part
         if self.with_attention is not None:
-            x = self.cbam(x)
+            x = self.attention(x)
         if self.num_shared_convs > 0:
             for conv in self.shared_convs:
                 x = conv(x)
@@ -193,7 +196,7 @@ class ConvFCBBoxHead(BBoxHead):
     def forward_cls(self, x):
         # shared part
         if self.with_attention is not None:
-            x = self.cbam(x)
+            x = self.attention(x)
         if self.num_shared_convs > 0:
             for conv in self.shared_convs:
                 x = conv(x)
@@ -222,7 +225,7 @@ class ConvFCBBoxHead(BBoxHead):
     #人脸质量评估训练前馈
     def forward_faceQt(self, x):
         if self.with_attention is not None:
-            x = self.cbam(x)
+            x = self.attention(x)
         if self.num_shared_convs > 0:
             for conv in self.shared_convs:
                 x = conv(x)
@@ -234,7 +237,7 @@ class ConvFCBBoxHead(BBoxHead):
     def forward(self, x):
         # shared part
         if self.with_attention is not None:
-            x = self.cbam(x)
+            x = self.attention(x)
 
         if self.num_shared_convs > 0:
             for conv in self.shared_convs:
@@ -251,7 +254,7 @@ class ConvFCBBoxHead(BBoxHead):
         # separate branches
         x_cls = x
         x_reg = x
-        
+
         for conv in self.cls_convs:
             x_cls = conv(x_cls)
         if x_cls.dim() > 2:

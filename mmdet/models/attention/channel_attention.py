@@ -14,7 +14,7 @@ class ChannelAttention(nn.Module):
 
     def forward(self, x):
         x = list(x)
-        for i in range(5):
+        for i in range(len(x)):
             avg_out = self.fc2(self.relu(self.fc1(self.avg_pool(x[i]))))
             max_out = self.fc2(self.relu(self.fc1(self.max_pool(x[i]))))
             out = avg_out + max_out

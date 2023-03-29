@@ -21,9 +21,9 @@ class CBAM(nn.Module):
         )
 
     def forward(self, x):
-        if isinstance(x, tuple):
+        if isinstance(x, tuple) or isinstance(x, list):
             x = list(x)
-            for i in range(5):
+            for i in range(len(x)):
                 # 通道注意力
                 channel_weight = self.channel_attention(x[i]) # 计算每个通道的权重
                 out = x[i] * channel_weight # 对输入特征进行加权
