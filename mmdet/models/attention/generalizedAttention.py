@@ -7,6 +7,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 from mmcv.cnn.utils import kaiming_init
+from mmcv.ops.deform_conv import DeformConv2d
 
 class GeneralizedAttention(nn.Module):
     """GeneralizedAttention module.
@@ -49,7 +50,8 @@ class GeneralizedAttention(nn.Module):
                  position_magnitude: int = 1,
                  kv_stride: int = 2,
                  q_stride: int = 1,
-                 attention_type: str = '1111'):
+                 attention_type: str = '1111',
+                 convtype='conv2d'):
 
         super().__init__()
 
@@ -69,27 +71,48 @@ class GeneralizedAttention(nn.Module):
         out_c = self.qk_embed_dim * num_heads
 
         if self.attention_type[0] or self.attention_type[1]:
-            self.query_conv = nn.Conv2d(
-                in_channels=in_channels,
-                out_channels=out_c,
-                kernel_size=1,
-                bias=False)
+            if convtype == 'dcn':
+                self.query_conv = DeformConv2d(
+                    in_channels=in_channels,
+                    out_channels=out_c,
+                    kernel_size=1,
+                    bias=False)
+            else:
+                self.query_conv = nn.Conv2d(
+                    in_channels=in_channels,
+                    out_channels=out_c,
+                    kernel_size=1,
+                    bias=False)
             self.query_conv.kaiming_init = True
 
         if self.attention_type[0] or self.attention_type[2]:
-            self.key_conv = nn.Conv2d(
-                in_channels=in_channels,
-                out_channels=out_c,
-                kernel_size=1,
-                bias=False)
+            if convtype == 'dcn':
+                self.key_conv = DeformConv2d(
+                    in_channels=in_channels,
+                    out_channels=out_c,
+                    kernel_size=1,
+                    bias=False)
+            else:
+                self.key_conv = nn.Conv2d(
+                    in_channels=in_channels,
+                    out_channels=out_c,
+                    kernel_size=1,
+                    bias=False)
             self.key_conv.kaiming_init = True
 
         self.v_dim = in_channels // num_heads
-        self.value_conv = nn.Conv2d(
-            in_channels=in_channels,
-            out_channels=self.v_dim * num_heads,
-            kernel_size=1,
-            bias=False)
+        if convtype == 'dcn':
+            self.value_conv = DeformConv2d(
+                in_channels=in_channels,
+                out_channels=self.v_dim * num_heads,
+                kernel_size=1,
+                bias=False)
+        else:
+            self.value_conv = nn.Conv2d(
+                in_channels=in_channels,
+                out_channels=self.v_dim * num_heads,
+                kernel_size=1,
+                bias=False)
         self.value_conv.kaiming_init = True
 
         if self.attention_type[1] or self.attention_type[3]:
@@ -111,11 +134,17 @@ class GeneralizedAttention(nn.Module):
             geom_bias_value = -2 * stdv * torch.rand(out_c) + stdv
             self.geom_bias = nn.Parameter(geom_bias_value)
 
-        self.proj_conv = nn.Conv2d(
-            in_channels=self.v_dim * num_heads,
-            out_channels=in_channels,
-            kernel_size=1,
-            bias=True)
+        if convtype == 'dcn':
+            self.proj_conv = DeformConv2d(
+                in_channels=self.v_dim * num_heads,
+                out_channels=in_channels,
+                kernel_size=1)
+        else:
+            self.proj_conv = nn.Conv2d(
+                in_channels=self.v_dim * num_heads,
+                out_channels=in_channels,
+                kernel_size=1,
+                bias=True)
         self.proj_conv.kaiming_init = True
         self.gamma = nn.Parameter(torch.zeros(1))
 

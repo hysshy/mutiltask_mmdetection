@@ -34,6 +34,7 @@ class SingleRoIExtractor(BaseRoIExtractor):
                  finest_scale=56,
                  init_cfg=None,
                  with_attention=None,
+                 convtype = 'conv2d',
                  with_convs = None,
                  norm_cfg = None,
                  conv_cfg = None):
@@ -50,7 +51,7 @@ class SingleRoIExtractor(BaseRoIExtractor):
         elif self.with_attention == 'AttentionCondenser':
             self.attention = AttentionCondenser(in_channels=256, out_channels=256)
         elif self.with_attention == 'GeneralizedAttention':
-            self.attention = GeneralizedAttention(in_channels=256,num_heads=8, attention_type='0010')
+            self.attention = GeneralizedAttention(in_channels=256,num_heads=8, attention_type='0010',convtype=convtype)
         if self.with_convs:
             # add branch specific conv layers
             self.branch_convs = nn.ModuleList()
