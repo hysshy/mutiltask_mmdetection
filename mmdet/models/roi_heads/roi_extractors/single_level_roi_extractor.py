@@ -34,7 +34,9 @@ class SingleRoIExtractor(BaseRoIExtractor):
                  finest_scale=56,
                  init_cfg=None,
                  with_attention=None,
-                 with_convs = None):
+                 with_convs = None,
+                 norm_cfg = None,
+                 conv_cfg = None):
         super(SingleRoIExtractor, self).__init__(roi_layer, out_channels,
                                                  featmap_strides, init_cfg)
         self.finest_scale = finest_scale
@@ -52,8 +54,8 @@ class SingleRoIExtractor(BaseRoIExtractor):
         if self.with_convs:
             # add branch specific conv layers
             self.branch_convs = nn.ModuleList()
-            self.norm_cfg = None
-            self.conv_cfg = None
+            self.norm_cfg = norm_cfg
+            self.conv_cfg = conv_cfg
             for i in range(2):
                 conv_in_channels = 256
                 self.branch_convs.append(
