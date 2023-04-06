@@ -7,7 +7,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 from mmcv.cnn.utils import kaiming_init
-from mmcv.ops.deform_conv import DeformConv2d
+from mmcv.ops.deform_conv import DeformConv2dPack
 
 class GeneralizedAttention(nn.Module):
     """GeneralizedAttention module.
@@ -87,7 +87,7 @@ class GeneralizedAttention(nn.Module):
 
         if self.attention_type[0] or self.attention_type[2]:
             if convtype == 'dcn':
-                self.key_conv = DeformConv2d(
+                self.key_conv = DeformConv2dPack(
                     in_channels=in_channels,
                     out_channels=out_c,
                     kernel_size=1,
@@ -102,7 +102,7 @@ class GeneralizedAttention(nn.Module):
 
         self.v_dim = in_channels // num_heads
         if convtype == 'dcn':
-            self.value_conv = DeformConv2d(
+            self.value_conv = DeformConv2dPack(
                 in_channels=in_channels,
                 out_channels=self.v_dim * num_heads,
                 kernel_size=1,
@@ -135,7 +135,7 @@ class GeneralizedAttention(nn.Module):
             self.geom_bias = nn.Parameter(geom_bias_value)
 
         if convtype == 'dcn':
-            self.proj_conv = DeformConv2d(
+            self.proj_conv = DeformConv2dPack(
                 in_channels=self.v_dim * num_heads,
                 out_channels=in_channels,
                 kernel_size=1)
