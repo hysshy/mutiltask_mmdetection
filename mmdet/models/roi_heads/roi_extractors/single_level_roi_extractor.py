@@ -1,5 +1,6 @@
 # Copyright (c) OpenMMLab. All rights reserved.
 import torch
+import torch.nn as nn
 from mmcv.runner import force_fp32
 from mmdet.models.attention.cba_attention import CBAM
 from mmdet.models.attention.channel_attention import ChannelAttention
@@ -7,7 +8,7 @@ from mmdet.models.attention.attention_consider import AttentionCondenser
 from mmdet.models.attention.generalizedAttention import GeneralizedAttention
 from mmdet.models.builder import ROI_EXTRACTORS
 from .base_roi_extractor import BaseRoIExtractor
-
+from mmcv.cnn import ConvModule
 
 @ROI_EXTRACTORS.register_module()
 class SingleRoIExtractor(BaseRoIExtractor):
@@ -32,11 +33,13 @@ class SingleRoIExtractor(BaseRoIExtractor):
                  featmap_strides,
                  finest_scale=56,
                  init_cfg=None,
-                 with_attention=None):
+                 with_attention=None,
+                 with_convs = None):
         super(SingleRoIExtractor, self).__init__(roi_layer, out_channels,
                                                  featmap_strides, init_cfg)
         self.finest_scale = finest_scale
         self.with_attention = with_attention
+        self.with_convs = with_convs
         if self.with_attention == 'CBAM':
             #RCNN前增加注意力：
             self.attention = CBAM(256)
@@ -46,6 +49,22 @@ class SingleRoIExtractor(BaseRoIExtractor):
             self.attention = AttentionCondenser(in_channels=256, out_channels=256)
         elif self.with_attention == 'GeneralizedAttention':
             self.attention = GeneralizedAttention(in_channels=256,num_heads=8, attention_type='0010')
+        if self.with_convs:
+            # add branch specific conv layers
+            self.branch_convs = nn.ModuleList()
+            self.norm_cfg = None
+            self.conv_cfg = None
+            for i in range(2):
+                conv_in_channels = 256
+                self.branch_convs.append(
+                    ConvModule(
+                        conv_in_channels,
+                        conv_in_channels,
+                        3,
+                        padding=1,
+                        conv_cfg=self.conv_cfg,
+                        norm_cfg=self.norm_cfg))
+
 
     def map_roi_levels(self, rois, num_levels):
         """Map rois to corresponding feature levels by scales.
@@ -73,6 +92,11 @@ class SingleRoIExtractor(BaseRoIExtractor):
         """Forward function."""
         if self.with_attention is not None:
             feats = self.attention(feats)
+        if self.with_convs:
+            for i in range(len(feats)):
+                for conv in self.branch_convs:
+                    feats[i] = conv(feats[i])
+
         out_size = self.roi_layers[0].output_size
         num_levels = len(feats)
         expand_dims = (-1, self.out_channels * out_size[0] * out_size[1])
