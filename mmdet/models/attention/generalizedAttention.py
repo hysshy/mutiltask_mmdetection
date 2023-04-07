@@ -75,7 +75,7 @@ class GeneralizedAttention(nn.Module):
                 self.query_conv = DeformConv2d(
                     in_channels=in_channels,
                     out_channels=out_c,
-                    kernel_size=1,
+                    kernel_size=3,
                     bias=False)
             else:
                 self.query_conv = nn.Conv2d(
@@ -90,7 +90,7 @@ class GeneralizedAttention(nn.Module):
                 self.key_conv = DeformConv2dPack(
                     in_channels=in_channels,
                     out_channels=out_c,
-                    kernel_size=1,
+                    kernel_size=3,
                     bias=False)
             else:
                 self.key_conv = nn.Conv2d(
@@ -105,7 +105,7 @@ class GeneralizedAttention(nn.Module):
             self.value_conv = DeformConv2dPack(
                 in_channels=in_channels,
                 out_channels=self.v_dim * num_heads,
-                kernel_size=1,
+                kernel_size=3,
                 bias=False)
         else:
             self.value_conv = nn.Conv2d(
@@ -138,7 +138,7 @@ class GeneralizedAttention(nn.Module):
             self.proj_conv = DeformConv2dPack(
                 in_channels=self.v_dim * num_heads,
                 out_channels=in_channels,
-                kernel_size=1)
+                kernel_size=3)
         else:
             self.proj_conv = nn.Conv2d(
                 in_channels=self.v_dim * num_heads,
