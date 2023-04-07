@@ -75,6 +75,7 @@ class GeneralizedAttention(nn.Module):
                 self.query_conv = DeformConv2d(
                     in_channels=in_channels,
                     out_channels=out_c,
+                    padding=1,
                     kernel_size=3,
                     bias=False)
             else:
@@ -91,6 +92,7 @@ class GeneralizedAttention(nn.Module):
                     in_channels=in_channels,
                     out_channels=out_c,
                     kernel_size=3,
+                    padding=1,
                     bias=False)
             else:
                 self.key_conv = nn.Conv2d(
@@ -105,6 +107,7 @@ class GeneralizedAttention(nn.Module):
             self.value_conv = DeformConv2dPack(
                 in_channels=in_channels,
                 out_channels=self.v_dim * num_heads,
+                padding=1,
                 kernel_size=3,
                 bias=False)
         else:
@@ -134,17 +137,18 @@ class GeneralizedAttention(nn.Module):
             geom_bias_value = -2 * stdv * torch.rand(out_c) + stdv
             self.geom_bias = nn.Parameter(geom_bias_value)
 
-        if convtype == 'dcn':
-            self.proj_conv = DeformConv2dPack(
-                in_channels=self.v_dim * num_heads,
-                out_channels=in_channels,
-                kernel_size=3)
-        else:
-            self.proj_conv = nn.Conv2d(
-                in_channels=self.v_dim * num_heads,
-                out_channels=in_channels,
-                kernel_size=1,
-                bias=True)
+        # if convtype == 'dcn':
+        #     self.proj_conv = DeformConv2dPack(
+        #         in_channels=self.v_dim * num_heads,
+        #         out_channels=in_channels,
+        #         padding=1,
+        #         kernel_size=3)
+        # else:
+        self.proj_conv = nn.Conv2d(
+            in_channels=self.v_dim * num_heads,
+            out_channels=in_channels,
+            kernel_size=1,
+            bias=True)
         self.proj_conv.kaiming_init = True
         self.gamma = nn.Parameter(torch.zeros(1))
 
@@ -266,7 +270,8 @@ class GeneralizedAttention(nn.Module):
             proj_query = proj_query.permute(0, 1, 3, 2)
 
         if self.attention_type[0] or self.attention_type[2]:
-            proj_key = self.key_conv(x_kv).view(
+            proj_key = self.key_conv(x_kv)
+            proj_key = proj_key.view(
                 (n, num_heads, self.qk_embed_dim, h_kv * w_kv))
 
         if self.attention_type[1] or self.attention_type[3]:
