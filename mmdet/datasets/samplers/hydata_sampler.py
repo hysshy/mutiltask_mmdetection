@@ -62,6 +62,9 @@ class Hydata_DistributedGroupSampler(Sampler):
         self.bodydetectProposalIds = []
         self.clouse_styleProposalIds = []
         self.clouse_colorProposalIds = []
+        self.faceGenderProposalIds =[]
+        self.carplateProposalIds = []
+        self.faceDetectProposalIds = []
         self.idList = []
         if hasattr(self.dataset, 'dataset'):
             ann_file = self.dataset.dataset.ann_file
@@ -95,6 +98,12 @@ class Hydata_DistributedGroupSampler(Sampler):
                 self.clouse_styleProposalIds.append(k)
             elif 'clouse_colorImgs' == filename.split('/')[-2]:
                 self.clouse_colorProposalIds.append(k)
+            elif 'faceGenderImgs' == filename.split('/')[-2]:
+                self.faceGenderProposalIds.append(k)
+            elif 'carplateImgs' == filename.split('/')[-2]:
+                self.carplateProposalIds.append(k)
+            elif 'faceDetectImgs' == filename.split('/')[-2]:
+                self.faceDetectProposalIds.append(k)
 
         print(len(self.detectproPosalIds))
         print(len(self.facezitaiProposalIds))
@@ -103,7 +112,9 @@ class Hydata_DistributedGroupSampler(Sampler):
         print(len(self.bodydetectProposalIds))
         print(len(self.clouse_styleProposalIds))
         print(len(self.clouse_colorProposalIds))
-
+        print(len(self.faceGenderProposalIds))
+        print(len(self.carplateProposalIds))
+        print(len(self.faceDetectProposalIds))
 
     def getIndices(self, proPosalIds, g):
         #查缺补漏
@@ -131,6 +142,11 @@ class Hydata_DistributedGroupSampler(Sampler):
             for _ in range(self.samples_per_gpu):
                 sample_item.append(single_indices.pop())
             indicesList[indices[i]] = sample_item
+
+    def getShufful_indices(self, start_index, single_len, shufful_indices):
+        end_index = start_index + single_len//self.samples_per_gpu
+        indices = shufful_indices[start_index:end_index]
+        return indices, end_index
 
     def __iter__(self):
 
@@ -163,6 +179,18 @@ class Hydata_DistributedGroupSampler(Sampler):
         clouse_color_g.manual_seed(self.epoch)
         clouse_colorindices = self.getIndices(self.clouse_colorProposalIds, clouse_color_g)
 
+        faceGender_g = torch.Generator()
+        faceGender_g.manual_seed(self.epoch)
+        faceGender_indices = self.getIndices(self.faceGenderProposalIds, faceGender_g)
+
+        carplate_g = torch.Generator()
+        carplate_g.manual_seed(self.epoch)
+        carplate_indices = self.getIndices(self.carplateProposalIds, carplate_g)
+
+        faceDetect_g = torch.Generator()
+        faceDetect_g.manual_seed(self.epoch)
+        faceDetect_indices = self.getIndices(self.faceDetectProposalIds, faceDetect_g)
+
         #切片
         assert len(detectindices) % self.num_replicas == 0
         assert len(facezitaiindices) % self.num_replicas == 0
@@ -171,8 +199,11 @@ class Hydata_DistributedGroupSampler(Sampler):
         assert len(bodydetectindices) % self.num_replicas == 0
         assert len(clouse_styleindices)% self.num_replicas == 0
         assert len(clouse_colorindices)% self.num_replicas == 0
+        assert len(faceGender_indices)% self.num_replicas == 0
+        assert len(carplate_indices)% self.num_replicas == 0
+        assert len(faceDetect_indices)% self.num_replicas == 0
 
-        print(len(detectindices), len(facezitaiindices), len(facemohuindices), len(faceKpindices), len(bodydetectindices), len(clouse_styleindices), len(clouse_colorindices))
+        print(len(detectindices), len(facezitaiindices), len(facemohuindices), len(faceKpindices), len(bodydetectindices), len(clouse_styleindices), len(clouse_colorindices), len(faceGender_indices), len(carplate_indices), len(faceDetect_indices))
 
         num_per_gpu_detect = len(detectindices)//self.num_replicas
         single_detectindices = detectindices[self.rank*num_per_gpu_detect:(self.rank+1)*num_per_gpu_detect]
@@ -195,6 +226,15 @@ class Hydata_DistributedGroupSampler(Sampler):
         num_per_gpu_clouse_color = len(clouse_colorindices)//self.num_replicas
         single_clouse_colorindices = clouse_colorindices[self.rank*num_per_gpu_clouse_color:(self.rank+1)*num_per_gpu_clouse_color]
 
+        num_per_gpu_faceGender = len(faceGender_indices)//self.num_replicas
+        single_faceGender_indices = faceGender_indices[self.rank*num_per_gpu_faceGender:(self.rank+1)*num_per_gpu_faceGender]
+
+        num_per_gpu_carplate = len(carplate_indices)//self.num_replicas
+        single_carplate_indices = carplate_indices[self.rank*num_per_gpu_carplate:(self.rank+1)*num_per_gpu_carplate]
+
+        num_per_gpu_faceDetect = len(faceDetect_indices)//self.num_replicas
+        single_faceDetect_indices = faceDetect_indices[self.rank*num_per_gpu_faceDetect:(self.rank+1)*num_per_gpu_faceDetect]
+
         #组合
         single_detect_len = len(single_detectindices)
         single_facemohu_len = len(single_facemohuindices)
@@ -203,8 +243,11 @@ class Hydata_DistributedGroupSampler(Sampler):
         single_bodydetect_len = len(single_bodydetectindices)
         single_clouse_style_len = len(single_clouse_styleindices)
         single_clouse_color_len = len(single_clouse_colorindices)
+        single_faceGender_len = len(single_faceGender_indices)
+        single_carplate_len = len(single_carplate_indices)
+        single_faceDetect_len = len(single_faceDetect_indices)
 
-        single_allNums = single_detect_len  + single_facemohu_len + single_facezitai_len + single_facekp_len + single_bodydetect_len + single_clouse_style_len + single_clouse_color_len
+        single_allNums = single_detect_len  + single_facemohu_len + single_facezitai_len + single_facekp_len + single_bodydetect_len + single_clouse_style_len + single_clouse_color_len + single_faceGender_len + single_carplate_len + single_faceDetect_len
 
         assert single_allNums % self.samples_per_gpu == 0
         assert single_detect_len % self.samples_per_gpu == 0
@@ -214,26 +257,27 @@ class Hydata_DistributedGroupSampler(Sampler):
         assert single_bodydetect_len % self.samples_per_gpu == 0
         assert single_clouse_style_len % self.samples_per_gpu == 0
         assert single_clouse_color_len % self.samples_per_gpu == 0
+        assert single_faceGender_len % self.samples_per_gpu == 0
+        assert single_carplate_len % self.samples_per_gpu == 0
+        assert single_faceDetect_len % self.samples_per_gpu == 0
 
         single_allsampers = int(single_allNums/self.samples_per_gpu)
         h = torch.Generator()
         h.manual_seed(self.epoch)
         shufful_indices = list(torch.randperm(int(single_allsampers),
                                             generator=h).tolist())
+        start_index = 0
+        detect_indices, end_index = self.getShufful_indices(start_index, single_detect_len, shufful_indices)
+        facezitai_indices, end_index = self.getShufful_indices(end_index, single_facezitai_len, shufful_indices)
+        facemohu_indices, end_index = self.getShufful_indices(end_index, single_facemohu_len, shufful_indices)
+        facekp_indices, end_index = self.getShufful_indices(end_index, single_facekp_len, shufful_indices)
+        bodydetect_indices, end_index = self.getShufful_indices(end_index, single_bodydetect_len, shufful_indices)
+        clouse_style_indices, end_index = self.getShufful_indices(end_index, single_clouse_style_len, shufful_indices)
+        clouse_color_indices, end_index = self.getShufful_indices(end_index, single_clouse_color_len, shufful_indices)
+        faceGender_indices, end_index = self.getShufful_indices(end_index, single_faceGender_len, shufful_indices)
+        carplate_indices, end_index = self.getShufful_indices(end_index, single_carplate_len, shufful_indices)
+        faceDetect_indices, end_index = self.getShufful_indices(end_index, single_faceDetect_len, shufful_indices)
 
-        detect_indices = shufful_indices[:single_detect_len//self.samples_per_gpu]
-        facezitai_indices = shufful_indices[single_detect_len//self.samples_per_gpu :
-                                            (single_detect_len+single_facezitai_len)//self.samples_per_gpu]
-        facemohu_indices = shufful_indices[(single_detect_len+single_facezitai_len)//self.samples_per_gpu:
-                                           (single_detect_len+single_facezitai_len+single_facemohu_len)//self.samples_per_gpu]
-        facekp_indices = shufful_indices[(single_detect_len+single_facezitai_len+single_facemohu_len)//self.samples_per_gpu:
-                                         (single_detect_len + single_facezitai_len + single_facemohu_len + single_facekp_len) // self.samples_per_gpu]
-        bodydetect_indices = shufful_indices[(single_detect_len + single_facezitai_len + single_facemohu_len + single_facekp_len) // self.samples_per_gpu:
-                                             (single_detect_len + single_facezitai_len + single_facemohu_len + single_facekp_len + single_bodydetect_len) // self.samples_per_gpu]
-        clouse_style_indices = shufful_indices[(single_detect_len + single_facezitai_len + single_facemohu_len + single_facekp_len +single_bodydetect_len) // self.samples_per_gpu:
-                                               (single_detect_len + single_facezitai_len + single_facemohu_len + single_facekp_len + single_bodydetect_len + single_clouse_style_len) // self.samples_per_gpu]
-        clouse_color_indices = shufful_indices[(single_detect_len + single_facezitai_len + single_facemohu_len + single_facekp_len +single_bodydetect_len + single_clouse_style_len) // self.samples_per_gpu:
-                                               (single_detect_len + single_facezitai_len + single_facemohu_len + single_facekp_len + single_bodydetect_len + single_clouse_style_len + single_clouse_color_len) // self.samples_per_gpu]
         indicesList = []
         for _ in range(single_allsampers):
             indicesList.append([])
@@ -245,6 +289,9 @@ class Hydata_DistributedGroupSampler(Sampler):
         self.getRangeIndices(indicesList, bodydetect_indices, single_bodydetectindices)
         self.getRangeIndices(indicesList, clouse_style_indices, single_clouse_styleindices)
         self.getRangeIndices(indicesList, clouse_color_indices, single_clouse_colorindices)
+        self.getRangeIndices(indicesList, faceGender_indices, single_faceGender_indices)
+        self.getRangeIndices(indicesList, carplate_indices, single_carplate_indices)
+        self.getRangeIndices(indicesList, faceDetect_indices, single_faceDetect_indices)
 
         indices = []
         for indice in indicesList:
