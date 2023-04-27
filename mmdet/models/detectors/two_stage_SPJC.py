@@ -36,7 +36,7 @@ class TwoStageDetector_SPJC(BaseDetector):
             self.neck_faceGender = build_neck(neck)
             self.neck_faceKp = build_neck(neck)
             self.neck_carplateDetect = build_neck(neck)
-            self.neckDict = {'detectImgs':self.neck_detect, 'faceDetectImgs':self.neck_faceDetect, 'faceGenderImgs':self.neck_faceGender, 'faceKpimages':self.neck_faceKp, 'carplateImgs':self.neck_carplateDetect}
+            self.neckDict = {'detect':self.neck_detect, 'faceDetect':self.neck_faceDetect, 'faceGender':self.neck_faceGender, 'faceKp':self.neck_faceKp, 'carplate':self.neck_carplateDetect}
 
         if rpn_head is not None:
             rpn_train_cfg = train_cfg.rpn if train_cfg is not None else None
@@ -45,6 +45,7 @@ class TwoStageDetector_SPJC(BaseDetector):
             self.rpn_head_detect = build_head(rpn_head[0])
             self.rpn_head_faceDetect = build_head(rpn_head[1])
             self.rpn_head_carplateDetect = build_head(rpn_head[2])
+            self.rpn_head_Dict = {'detect':self.rpn_head_detect, 'faceDetect':self.rpn_head_faceDetect, 'carplate':self.rpn_head_carplateDetect}
 
         if roi_head is not None:
             # update train and test cfg here for now
@@ -58,6 +59,8 @@ class TwoStageDetector_SPJC(BaseDetector):
             self.roi_head_faceKp = build_head(roi_head[2])
             self.roi_head_faceGender = build_head(roi_head[3])
             self.roi_head_carplateDetect = build_head(roi_head[4])
+            self.roi_head_Dict = {'detect':self.roi_head_detect, 'faceDetect':self.roi_head_faceDetect, 'faceGender':self.roi_head_faceDetect, 'faceKp':self.roi_head_faceDetect, 'carplate':self.roi_head_carplateDetect}
+
 
 
         self.train_cfg = train_cfg
@@ -71,12 +74,10 @@ class TwoStageDetector_SPJC(BaseDetector):
     def with_roi_head(self):
         return hasattr(self, 'roi_head') and self.roi_head is not None
 
-    def extract_feat(self, img, img_metas):
+    def extract_feat(self, img, targetName):
         """Directly extract features from the backbone+neck
         """
         x = self.backbone(img)
-        fileName = img_metas[0]["filename"]
-        targetName = fileName.split("/")[-2]
         x = self.neckDict[targetName](x)
         return x
 
@@ -138,75 +139,55 @@ class TwoStageDetector_SPJC(BaseDetector):
             dict[str, Tensor]: a dictionary of loss components
         """
 
-
-        x = self.extract_feat(img, img_metas)
+        targetName = img_metas[0]["filename"].split("/")[-2].split('Imgs')[0]
+        x = self.extract_feat(img, targetName)
         losses = dict()
         # 区分人脸标签和姿态标签
         detect_x, detect_img_metas, detect_gt_bboxes, detect_gt_labels = labelstransform.findLabelbyFile(x, img_metas, gt_bboxes, gt_labels, gt_keypoints, gt_visibles, 'detectImgs', 0)
-        facekp_x, facekp_img_metas, facekp_gt_bboxes, facekp_gt_keypoints = labelstransform.findLabelbyFile(x, img_metas, gt_bboxes, gt_labels, gt_keypoints, gt_visibles, 'faceKpimages', 0)
+        facekp_x, facekp_img_metas, facekp_gt_bboxes, facekp_gt_keypoints = labelstransform.findLabelbyFile(x, img_metas, gt_bboxes, gt_labels, gt_keypoints, gt_visibles, 'faceKpImgs', 0)
         faceDetect_x, faceDetect_img_metas, faceDetect_gt_bboxes, faceDetect_gt_labels = labelstransform.findLabelbyFile(x, img_metas, gt_bboxes, gt_labels, gt_keypoints, gt_visibles, 'faceDetectImgs', 7)
         faceGender_x, faceGender_img_metas, faceGender_gt_bboxes, faceGender_gt_labels = labelstransform.findLabelbyFile(x, img_metas, gt_bboxes, gt_labels, gt_keypoints, gt_visibles, 'faceGenderImgs', 9)
         carplate_x, carplate_img_metas, carplate_gt_bboxes, carplate_gt_labels = labelstransform.findLabelbyFile(x, img_metas, gt_bboxes, gt_labels, gt_keypoints, gt_visibles, 'carplateImgs', 11)
+        x_dict = {'detect':detect_x, 'faceDetect':faceDetect_x, 'faceGender':faceGender_x, 'faceKp':facekp_x, 'carplate':carplate_x}
+        img_metas_dict = {'detect':detect_img_metas, 'faceDetect':faceDetect_img_metas, 'faceGender':faceGender_img_metas, 'faceKp':facekp_img_metas, 'carplate':carplate_img_metas}
+        gt_bboxes_dict = {'detect':detect_gt_bboxes, 'faceDetect':faceDetect_gt_bboxes, 'faceGender':faceGender_gt_bboxes, 'faceKp':facekp_gt_bboxes, 'carplate':carplate_gt_bboxes}
+        gt_labels_dict = {'detect':detect_gt_labels, 'faceDetect':faceDetect_gt_labels, 'faceGender':faceGender_gt_labels, 'faceKp':facekp_gt_keypoints, 'carplate':carplate_gt_labels}
 
-        # 社区目标检测
-        if len(detect_img_metas) >0:
-            assert len(detect_img_metas) == 2
-
+        #检测类任务：社区目标、人脸、车牌
+        if targetName in ['detect', 'faceDetect', 'carplate']:
             # RPN forward and loss
             proposal_cfg = self.train_cfg.get('rpn_proposal',
                                               self.test_cfg.rpn)
-            rpn_losses, proposal_list = self.rpn_head_detect.forward_train(
-                detect_x,
-                detect_img_metas,
-                detect_gt_bboxes,
+            rpn_losses, proposal_list = self.rpn_head_Dict[targetName].forward_train(
+                x_dict[targetName],
+                img_metas_dict[targetName],
+                gt_bboxes_dict[targetName],
                 gt_labels=None,
                 gt_bboxes_ignore=gt_bboxes_ignore,
                 proposal_cfg=proposal_cfg)
-            losses.update(rpn_losses)
-
-            detect_roi_losses = self.roi_head_detect.forward_train(detect_x, detect_img_metas, proposal_list,
-                                                     detect_gt_bboxes, detect_gt_labels,
-                                                     gt_bboxes_ignore, gt_masks,
-                                                     **kwargs)
-            for name, value in detect_roi_losses.items():
-                losses['{}'.format(name)] = (
-                        value)
-
-        # 人脸检测
-        if len(faceDetect_img_metas) >0:
-            assert len(faceDetect_img_metas) == 2
-
-            # RPN forward and loss
-            proposal_cfg = self.train_cfg.get('rpn_proposal',
-                                              self.test_cfg.rpn)
-            rpn_losses, proposal_list = self.rpn_head_faceDetect.forward_train(
-                faceDetect_x,
-                faceDetect_img_metas,
-                faceDetect_gt_bboxes,
-                gt_labels=None,
-                gt_bboxes_ignore=gt_bboxes_ignore,
-                proposal_cfg=proposal_cfg)
-            losses.update(rpn_losses)
-
-            faceDetect_roi_losses = self.roi_head_faceDetect.forward_train(faceDetect_x, faceDetect_img_metas, proposal_list,
-                                                     faceDetect_gt_bboxes, faceDetect_gt_labels,
-                                                     gt_bboxes_ignore, gt_masks,
-                                                     **kwargs)
-            for name, value in faceDetect_roi_losses.items():
-                losses['faceDetect_{}'.format(name)] = (
-                        value)
+            for name, value in rpn_losses.items():
+                losses['{}_{}'.format(targetName, name)] = (
+                    value)
+            # ROI forward and loss
+            roi_losses = self.roi_head_Dict[targetName].forward_train(x_dict[targetName], img_metas_dict[targetName], proposal_list,
+                                                                   gt_bboxes_dict[targetName], gt_labels_dict[targetName],
+                                                                   gt_bboxes_ignore, gt_masks,
+                                                                   **kwargs)
+            for name, value in roi_losses.items():
+                losses['{}_{}'.format(targetName, name)] = (
+                    value)
 
         # 人脸关键点检测
-        if len(facekp_gt_bboxes) > 0:
+        elif targetName == 'faceKp':
             assert len(facekp_gt_bboxes) == 2
             facekp_roi_losses = self.roi_head_faceKp.kp_forward_train(facekp_x, facekp_img_metas, facekp_gt_keypoints,
                                                            facekp_gt_bboxes)
             for name, value in facekp_roi_losses.items():
-                losses['facekp_{}'.format(name)] = (
+                losses['{}_{}'.format(targetName, name)] = (
                     value)
 
-        # 性别识别
-        if len(faceGender_img_metas) > 0:
+        # 人脸性别识别
+        elif targetName == 'faceGender':
             assert len(faceGender_img_metas) == 2
             proposal_cfg = self.train_cfg.get('rpn_proposal',
                                               self.test_cfg.rpn)
@@ -221,32 +202,8 @@ class TwoStageDetector_SPJC(BaseDetector):
                                                                        faceGender_gt_bboxes, faceGender_gt_labels,
                                                                        gt_bboxes_ignore)
             for name, value in gender_roi_losses.items():
-                losses['gender_{}'.format(name)] = (
+                losses['{}_{}'.format(targetName, name)] = (
                     value)
-
-        if len(carplate_img_metas) > 0:
-            assert len(carplate_img_metas) == 2
-
-            # RPN forward and loss
-            proposal_cfg = self.train_cfg.get('rpn_proposal',
-                                              self.test_cfg.rpn)
-            rpn_losses, proposal_list = self.rpn_head_carplateDetect.forward_train(
-                carplate_x,
-                carplate_img_metas,
-                carplate_gt_bboxes,
-                gt_labels=None,
-                gt_bboxes_ignore=gt_bboxes_ignore,
-                proposal_cfg=proposal_cfg)
-            losses.update(rpn_losses)
-
-            carplate_roi_losses = self.roi_head_carplateDetect.forward_train(carplate_x, carplate_img_metas, proposal_list,
-                                                     carplate_gt_bboxes, carplate_gt_labels,
-                                                     gt_bboxes_ignore, gt_masks,
-                                                     **kwargs)
-            for name, value in carplate_roi_losses.items():
-                losses['carplate_{}'.format(name)] = (
-                        value)
-
         return losses
 
     async def async_simple_test(self,
@@ -285,47 +242,31 @@ class TwoStageDetector_SPJC(BaseDetector):
         return iouLine
 
 
-    def simple_test(self, img, img_metas, proposals=None, rescale=False, points=None):
+    def simple_test(self, img, img_metas, proposals=None, rescale=False, points=None, pre_bboxes=None):
         """Test without augmentation."""
-        person_bboxes, person_labels, car_bboxes, car_labels, pets_bboxes, pets_labels, face_bboxes, face_labels, zitai_labels, face_kps, carplates = \
-            [],[],[],[],[],[],[],[],[],[],[]
-        x = self.extract_feat(img, img_metas)
-        if proposals is None:
-            proposal_list = self.rpn_head_detect.simple_test_rpn(x, img_metas)
-        else:
-            proposal_list = proposals
-        if proposal_list[0].size(0) == 0:
-            return [],[],[]
-        return self.roi_head_detect.simple_test(
-            x, proposal_list, img_metas, rescale=rescale)
-        det_bboxes, det_labels = self.roi_head_detect.simple_test(
-            x, proposal_list, img_metas, rescale=rescale, ifdet=True)
-        # det_bboxes, det_labels = labelstransform.simple_test_unRepeated(det_bboxes, det_labels)
-        person_bboxes, person_labels, face_bboxes, face_labels, car_bboxes, car_labels, pets_bboxes, pets_labels = labelstransform.simple_test_splitTarget(det_bboxes, det_labels, points, 0, 1, 2, 3, 4, 6, 7, 8)
-        if len(face_bboxes) > 0:
-            #人脸姿态分类
-            zitai_labels = self.faceGender_roi_head.simple_cls_test(x, face_bboxes.clone(), img_metas)
-            print(zitai_labels)
-            face_kps = self.faceKp_roi_head.simple_hy_kp_test(
-                x, face_bboxes.clone(), img_metas, rescale=rescale)
+        targetName = img_metas[0]["filename"].split("/")[-2].split('Imgs')[0]
+        x = self.extract_feat(img, targetName)
+        # 根据pre_bboxes进行检测
+        if pre_bboxes is not None:
+            pre_bboxes = torch.from_numpy(np.array(pre_bboxes))
+            pre_bboxes = pre_bboxes.to(img.device)
+            proposal_list = pre_bboxes.type(torch.float)
+        elif pre_bboxes is None:
+            proposal_list = self.rpn_head_Dict[targetName].simple_test_rpn(x, img_metas)
+
+        if targetName == 'faceKp':
+            face_kps = self.roi_head_faceKp.simple_hy_kp_test(
+                x, proposal_list, img_metas, rescale=rescale)
             face_kps = face_kps.cpu().numpy()
-            zitai_labels = zitai_labels.cpu().numpy()
-            # 人脸关键点检测
-            carplates = self.carplate_roi_head.simple_hy_qt_test(
-                x, face_bboxes.clone(), img_metas, rescale=rescale)
-            carplates = carplates.cpu().numpy()
-
-        face_bboxes = face_bboxes.cpu().numpy()
-        face_labels = face_labels.cpu().numpy()
-        person_bboxes =person_bboxes.cpu().numpy()
-        person_labels = person_labels.cpu().numpy()
-        car_bboxes = car_bboxes.cpu().numpy()
-        car_labels = car_labels.cpu().numpy()
-        pets_bboxes = pets_bboxes.cpu().numpy()
-        pets_labels = pets_labels.cpu().numpy()
-
-        return person_bboxes, person_labels, car_bboxes, car_labels, pets_bboxes, pets_labels, face_bboxes, face_labels, zitai_labels, face_kps, carplates
-
+            return face_kps
+        elif targetName == 'faceGender':
+            # 人脸姿态分类
+            faceGender_labels = self.roi_head_faceGender.simple_cls_test(x, proposal_list, img_metas)
+            faceGender_labels = faceGender_labels.cpu().numpy()
+            return faceGender_labels
+        else:
+            return self.roi_head_Dict[targetName].simple_test(
+                x, proposal_list, img_metas, rescale=rescale)
 
     def aug_test(self, imgs, img_metas, rescale=False):
         """Test with augmentations.

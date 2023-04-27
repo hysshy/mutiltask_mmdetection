@@ -28,7 +28,7 @@ def findLabelbyFile(x, img_metas, gt_bboxes, gt_labels, gt_keypoints, gt_visible
             else:
                 find_gt_label = gt_labels[i] - startLabel
             find_gt_labels.append(find_gt_label)
-            if fileName.split("/")[-2] == targetName == 'faceKpimages':
+            if fileName.split("/")[-2] == targetName == 'faceKpImgs':
                 find_gt_keypoints.append(gt_keypoints[i])
         else:
             findImgsIndex.append(False)
@@ -41,7 +41,7 @@ def findLabelbyFile(x, img_metas, gt_bboxes, gt_labels, gt_keypoints, gt_visible
         for i in range(5):
             find_x.append(x[i][findImgsIndex])
 
-    if fileName.split("/")[-2] == targetName == 'faceKpimages':
+    if fileName.split("/")[-2] == targetName == 'faceKpImgs':
         # 人脸关键点训练数据筛选
         facekpfeature_depth = 5  # 特征图的层数
         facekp_x = []

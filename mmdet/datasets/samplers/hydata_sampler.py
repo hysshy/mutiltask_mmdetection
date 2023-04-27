@@ -90,7 +90,7 @@ class Hydata_DistributedGroupSampler(Sampler):
                 self.facezitaiProposalIds.append(k)
             elif 'detectImgs' == filename.split('/')[-2]:
                 self.detectproPosalIds.append(k)
-            elif 'faceKpimages' == filename.split('/')[-2]:
+            elif 'faceKpImgs' == filename.split('/')[-2]:
                 self.facekpProposalIds.append(k)
             elif 'bodyDetectImgs' == filename.split('/')[-2]:
                 self.bodydetectProposalIds.append(k)
