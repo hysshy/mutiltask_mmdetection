@@ -3,6 +3,7 @@ from ..builder import DETECTORS, build_backbone, build_head, build_neck
 from .base import BaseDetector
 from . import labelstransform
 import warnings
+import numpy as np
 
 
 
@@ -45,7 +46,7 @@ class TwoStageDetector_SPJC(BaseDetector):
             self.rpn_head_detect = build_head(rpn_head[0])
             self.rpn_head_faceDetect = build_head(rpn_head[1])
             self.rpn_head_carplateDetect = build_head(rpn_head[2])
-            self.rpn_head_Dict = {'detect':self.rpn_head_detect, 'faceDetect':self.rpn_head_faceDetect, 'carplate':self.rpn_head_carplateDetect}
+            self.rpn_head_Dict = {'detect':self.rpn_head_detect, 'faceDetect':self.rpn_head_faceDetect, 'faceKp':self.rpn_head_faceDetect, 'carplate':self.rpn_head_carplateDetect}
 
         if roi_head is not None:
             # update train and test cfg here for now
@@ -59,7 +60,7 @@ class TwoStageDetector_SPJC(BaseDetector):
             self.roi_head_faceKp = build_head(roi_head[2])
             self.roi_head_faceGender = build_head(roi_head[3])
             self.roi_head_carplateDetect = build_head(roi_head[4])
-            self.roi_head_Dict = {'detect':self.roi_head_detect, 'faceDetect':self.roi_head_faceDetect, 'faceGender':self.roi_head_faceDetect, 'faceKp':self.roi_head_faceDetect, 'carplate':self.roi_head_carplateDetect}
+            self.roi_head_Dict = {'detect':self.roi_head_detect, 'faceDetect':self.roi_head_faceDetect, 'faceGender':self.roi_head_faceGender, 'faceKp':self.roi_head_faceKp, 'carplate':self.roi_head_carplateDetect}
 
 
 
@@ -145,9 +146,9 @@ class TwoStageDetector_SPJC(BaseDetector):
         # 区分人脸标签和姿态标签
         detect_x, detect_img_metas, detect_gt_bboxes, detect_gt_labels = labelstransform.findLabelbyFile(x, img_metas, gt_bboxes, gt_labels, gt_keypoints, gt_visibles, 'detectImgs', 0)
         facekp_x, facekp_img_metas, facekp_gt_bboxes, facekp_gt_keypoints = labelstransform.findLabelbyFile(x, img_metas, gt_bboxes, gt_labels, gt_keypoints, gt_visibles, 'faceKpImgs', 0)
-        faceDetect_x, faceDetect_img_metas, faceDetect_gt_bboxes, faceDetect_gt_labels = labelstransform.findLabelbyFile(x, img_metas, gt_bboxes, gt_labels, gt_keypoints, gt_visibles, 'faceDetectImgs', 7)
-        faceGender_x, faceGender_img_metas, faceGender_gt_bboxes, faceGender_gt_labels = labelstransform.findLabelbyFile(x, img_metas, gt_bboxes, gt_labels, gt_keypoints, gt_visibles, 'faceGenderImgs', 9)
-        carplate_x, carplate_img_metas, carplate_gt_bboxes, carplate_gt_labels = labelstransform.findLabelbyFile(x, img_metas, gt_bboxes, gt_labels, gt_keypoints, gt_visibles, 'carplateImgs', 11)
+        faceDetect_x, faceDetect_img_metas, faceDetect_gt_bboxes, faceDetect_gt_labels = labelstransform.findLabelbyFile(x, img_metas, gt_bboxes, gt_labels, gt_keypoints, gt_visibles, 'faceDetectImgs', 0)
+        faceGender_x, faceGender_img_metas, faceGender_gt_bboxes, faceGender_gt_labels = labelstransform.findLabelbyFile(x, img_metas, gt_bboxes, gt_labels, gt_keypoints, gt_visibles, 'faceGenderImgs', 0)
+        carplate_x, carplate_img_metas, carplate_gt_bboxes, carplate_gt_labels = labelstransform.findLabelbyFile(x, img_metas, gt_bboxes, gt_labels, gt_keypoints, gt_visibles, 'carplateImgs', 0)
         x_dict = {'detect':detect_x, 'faceDetect':faceDetect_x, 'faceGender':faceGender_x, 'faceKp':facekp_x, 'carplate':carplate_x}
         img_metas_dict = {'detect':detect_img_metas, 'faceDetect':faceDetect_img_metas, 'faceGender':faceGender_img_metas, 'faceKp':facekp_img_metas, 'carplate':carplate_img_metas}
         gt_bboxes_dict = {'detect':detect_gt_bboxes, 'faceDetect':faceDetect_gt_bboxes, 'faceGender':faceGender_gt_bboxes, 'faceKp':facekp_gt_bboxes, 'carplate':carplate_gt_bboxes}
@@ -184,7 +185,7 @@ class TwoStageDetector_SPJC(BaseDetector):
                                                            facekp_gt_bboxes)
             for name, value in facekp_roi_losses.items():
                 losses['{}_{}'.format(targetName, name)] = (
-                    value)
+                    value * 0.001)
 
         # 人脸性别识别
         elif targetName == 'faceGender':
@@ -267,6 +268,16 @@ class TwoStageDetector_SPJC(BaseDetector):
         else:
             return self.roi_head_Dict[targetName].simple_test(
                 x, proposal_list, img_metas, rescale=rescale)
+            face_kps = []
+            det_bboxes, det_labels = self.roi_head_Dict[targetName].simple_test(
+                x, proposal_list, img_metas, rescale=rescale, ifdet=True)
+            if len(det_bboxes) > 0:
+                face_kps = self.roi_head_faceKp.simple_hy_kp_test(
+                    x, det_bboxes.clone(), img_metas, rescale=rescale)
+                face_kps = face_kps.cpu().numpy()
+            det_bboxes = det_bboxes.cpu().numpy()
+            det_labels = det_labels.cpu().numpy()
+            return det_bboxes, det_labels, face_kps
 
     def aug_test(self, imgs, img_metas, rescale=False):
         """Test with augmentations.
