@@ -185,7 +185,7 @@ class TwoStageDetector_SPJC(BaseDetector):
                                                            facekp_gt_bboxes)
             for name, value in facekp_roi_losses.items():
                 losses['{}_{}'.format(targetName, name)] = (
-                    value * 0.001)
+                    value * 0.01)
 
         # 人脸性别识别
         elif targetName == 'faceGender':
@@ -204,7 +204,7 @@ class TwoStageDetector_SPJC(BaseDetector):
                                                                        gt_bboxes_ignore)
             for name, value in gender_roi_losses.items():
                 losses['{}_{}'.format(targetName, name)] = (
-                    value)
+                    value*100)
         return losses
 
     async def async_simple_test(self,
