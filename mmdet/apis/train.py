@@ -15,7 +15,6 @@ from mmdet.datasets import (build_dataloader, build_dataset,
 from mmdet.utils import (build_ddp, build_dp, compat_cfg,
                          find_latest_checkpoint, get_root_logger)
 
-
 def init_random_seed(seed=None, device='cuda'):
     """Initialize random seed.
 
@@ -120,7 +119,8 @@ def train_detector(model,
                    distributed=False,
                    validate=False,
                    timestamp=None,
-                   meta=None):
+                   meta=None,
+                   fed_lw=False):
 
     cfg = compat_cfg(cfg)
     logger = get_root_logger(log_level=cfg.log_level)
@@ -241,4 +241,8 @@ def train_detector(model,
         runner.resume(cfg.resume_from)
     elif cfg.load_from:
         runner.load_checkpoint(cfg.load_from)
-    runner.run(data_loaders, cfg.workflow)
+    if fed_lw:
+        runner.run(data_loaders, cfg.workflow, **{'work_dir':cfg.work_dir})
+    else:
+        runner.run(data_loaders, cfg.workflow)
+
