@@ -1,3 +1,5 @@
+import os.path
+
 import torch
 from ..builder import DETECTORS, build_backbone, build_head, build_neck
 from .base import BaseDetector
@@ -110,6 +112,7 @@ class TwoStageDetector_SPJC(BaseDetector):
                       proposals=None,
                       gt_keypoints=None,
                       gt_visibles=None,
+                      work_dir=None,
                       **kwargs):
         """
         Args:
@@ -139,7 +142,14 @@ class TwoStageDetector_SPJC(BaseDetector):
         Returns:
             dict[str, Tensor]: a dictionary of loss components
         """
-
+        if work_dir is not None and os.path.exists(work_dir + '/fedlw.txt'):
+            with open(work_dir + '/fedlw.txt', mode='r') as f:
+                lines = f.readlines()
+                fedlws = lines[-1].strip('\n').split(':')
+                assert 'fedlw' == fedlws[0]
+                fedlw = float(fedlws[1])
+        else:
+            fedlw = 1
         targetName = img_metas[0]["filename"].split("/")[-2].split('Imgs')[0]
         x = self.extract_feat(img, targetName)
         losses = dict()
@@ -167,6 +177,12 @@ class TwoStageDetector_SPJC(BaseDetector):
                 gt_bboxes_ignore=gt_bboxes_ignore,
                 proposal_cfg=proposal_cfg)
             for name, value in rpn_losses.items():
+                if 'loss' in name:
+                    if isinstance(value, list):
+                        for i in range(len(value)):
+                            value[i] = value[i] * fedlw
+                    else:
+                        value = value * fedlw
                 losses['{}_{}'.format(targetName, name)] = (
                     value)
             # ROI forward and loss
@@ -175,6 +191,8 @@ class TwoStageDetector_SPJC(BaseDetector):
                                                                    gt_bboxes_ignore, gt_masks,
                                                                    **kwargs)
             for name, value in roi_losses.items():
+                if 'loss' in name:
+                    value = value * fedlw
                 losses['{}_{}'.format(targetName, name)] = (
                     value)
 
@@ -184,8 +202,11 @@ class TwoStageDetector_SPJC(BaseDetector):
             facekp_roi_losses = self.roi_head_faceKp.kp_forward_train(facekp_x, facekp_img_metas, facekp_gt_keypoints,
                                                            facekp_gt_bboxes)
             for name, value in facekp_roi_losses.items():
+                if 'loss' in name:
+                    value = value * fedlw
+                    # value *= 0.1
                 losses['{}_{}'.format(targetName, name)] = (
-                    value * 0.01)
+                    value)
 
         # 人脸性别识别
         elif targetName == 'faceGender':
@@ -203,8 +224,10 @@ class TwoStageDetector_SPJC(BaseDetector):
                                                                        faceGender_gt_bboxes, faceGender_gt_labels,
                                                                        gt_bboxes_ignore)
             for name, value in gender_roi_losses.items():
+                if 'loss' in name:
+                    value = value * fedlw
                 losses['{}_{}'.format(targetName, name)] = (
-                    value*100)
+                    value)
         return losses
 
     async def async_simple_test(self,

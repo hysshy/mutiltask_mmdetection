@@ -218,7 +218,7 @@ class BaseDetector(BaseModule, metaclass=ABCMeta):
 
         return loss, log_vars
 
-    def train_step(self, data, optimizer):
+    def train_step(self, data, optimizer, work_dir=None):
         """The iteration step during training.
 
         This method defines an iteration step during training, except for the
@@ -245,7 +245,10 @@ class BaseDetector(BaseModule, metaclass=ABCMeta):
                   DDP, it means the batch size on each GPU), which is used for
                   averaging the logs.
         """
-        losses = self(**data)
+        if work_dir is None:
+            losses = self(**data)
+        else:
+            losses = self(**data, work_dir=work_dir)
         loss, log_vars = self._parse_losses(losses)
 
         outputs = dict(

@@ -84,8 +84,10 @@ class ConvFCBBoxHead(BBoxHead):
         # reconstruct fc_cls and fc_reg since input channels are changed
         if self.with_faceKp:
             #人脸关键点全连接层
-            self.kp_reg = nn.Linear(self.reg_last_dim, self.kpNum)
-
+            self.kp_reg = build_linear_layer(
+                self.reg_predictor_cfg,
+                in_features=self.reg_last_dim,
+                out_features=self.kpNum)
         if self.with_cls:
             if self.custom_cls_channels:
                 cls_channels = self.loss_cls.get_cls_channels(self.num_classes)
@@ -131,6 +133,8 @@ class ConvFCBBoxHead(BBoxHead):
                         dict(name='reg_fcs')
                     ])
             ]
+            if self.with_faceKp:
+                self.init_cfg += [dict(type='Normal', std=0.001, override=dict(name='kp_reg'))]
 
     def _add_conv_fc_branch(self,
                             num_branch_convs,

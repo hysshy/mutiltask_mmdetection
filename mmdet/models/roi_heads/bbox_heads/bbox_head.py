@@ -374,7 +374,7 @@ class BBoxHead(BaseModule):
                     pos_bbox_pred,
                     bbox_targets[pos_inds.type(torch.bool)],
                     bbox_weights[pos_inds.type(torch.bool)],
-                    avg_factor=bbox_targets.size(0),
+                    avg_factor=avg_factor,
                     reduction_override=reduction_override)
             else:
                 losses['loss_bbox'] = bbox_pred[pos_inds].sum()
@@ -393,7 +393,7 @@ class BBoxHead(BaseModule):
             pos_kp_pred,
             kp_targets,
             kp_weights,
-            avg_factor=kp_targets.size(0),
+            avg_factor=1024,
             reduction_override=reduction_override)
         return losses
 
