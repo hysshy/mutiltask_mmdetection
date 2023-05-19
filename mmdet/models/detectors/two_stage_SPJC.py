@@ -33,13 +33,17 @@ class TwoStageDetector_SPJC(BaseDetector):
             backbone.pretrained = pretrained
         self.backbone = build_backbone(backbone)
 
+        self.neck_names = neck.pop('neck_names')
         if neck is not None:
-            self.neck_detect = build_neck(neck)
-            self.neck_faceDetect = build_neck(neck)
-            self.neck_faceGender = build_neck(neck)
-            self.neck_faceKp = build_neck(neck)
-            self.neck_carplateDetect = build_neck(neck)
-            self.neckDict = {'detect':self.neck_detect, 'faceDetect':self.neck_faceDetect, 'faceGender':self.neck_faceGender, 'faceKp':self.neck_faceKp, 'carplate':self.neck_carplateDetect}
+            if 'backbone_neck' in self.neck_names:
+                self.backbone_neck = build_neck(neck)
+            if 'task_neck' in self.neck_names:
+                self.neck_detect = build_neck(neck)
+                self.neck_faceDetect = build_neck(neck)
+                self.neck_faceGender = build_neck(neck)
+                self.neck_faceKp = build_neck(neck)
+                self.neck_carplateDetect = build_neck(neck)
+                self.neckDict = {'detect':self.neck_detect, 'faceDetect':self.neck_faceDetect, 'faceGender':self.neck_faceGender, 'faceKp':self.neck_faceKp, 'carplate':self.neck_carplateDetect}
 
         if rpn_head is not None:
             rpn_train_cfg = train_cfg.rpn if train_cfg is not None else None
@@ -81,7 +85,20 @@ class TwoStageDetector_SPJC(BaseDetector):
         """Directly extract features from the backbone+neck
         """
         x = self.backbone(img)
-        x = self.neckDict[targetName](x)
+        x_n = []
+        if 'backbone_neck' in self.neck_names:
+            x1 = self.backbone_neck(x)
+            x_n.append(x1)
+        if 'task_neck' in self.neck_names:
+            x2 = self.neckDict[targetName](x)
+            x_n.append(x2)
+        x = [[] for i in range (len(x_n[0]))]
+        for i in range(len(x_n[0])):
+            for j in range(len(x_n)):
+                if x[i] == []:
+                    x[i] = x_n[j][i]/len(x_n)
+                else:
+                    x[i] = x[i] + x_n[j][i] / len(x_n)
         return x
 
     def forward_dummy(self, img):
