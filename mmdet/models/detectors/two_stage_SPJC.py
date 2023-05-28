@@ -6,7 +6,7 @@ from .base import BaseDetector
 from . import labelstransform
 import warnings
 import numpy as np
-
+from mmdet.models.attention.generalizedAttention import GeneralizedAttention
 
 
 @DETECTORS.register_module()
@@ -34,9 +34,14 @@ class TwoStageDetector_SPJC(BaseDetector):
         self.backbone = build_backbone(backbone)
 
         self.neck_names = neck.pop('neck_names')
+        self.attentionType = neck.pop('attention')
+        self.convtype = neck.pop('convtype')
         if neck is not None:
             if 'backbone_neck' in self.neck_names:
                 self.backbone_neck = build_neck(neck)
+                if self.attentionType == 'GA':
+                    self.attention_backbone = GeneralizedAttention(in_channels=256, num_heads=8, attention_type='0010',
+                                                          convtype=self.convtype)
             if 'task_neck' in self.neck_names:
                 self.neck_detect = build_neck(neck)
                 self.neck_faceDetect = build_neck(neck)
@@ -44,6 +49,20 @@ class TwoStageDetector_SPJC(BaseDetector):
                 self.neck_faceKp = build_neck(neck)
                 self.neck_carplateDetect = build_neck(neck)
                 self.neckDict = {'detect':self.neck_detect, 'faceDetect':self.neck_faceDetect, 'faceGender':self.neck_faceGender, 'faceKp':self.neck_faceKp, 'carplate':self.neck_carplateDetect}
+
+                if self.attentionType == 'GA':
+                    self.attention_detect = GeneralizedAttention(in_channels=256, num_heads=8, attention_type='0010',
+                                                          convtype=self.convtype)
+                    self.attention_faceDetect = GeneralizedAttention(in_channels=256, num_heads=8, attention_type='0010',
+                                                          convtype=self.convtype)
+                    self.attention_faceGender = GeneralizedAttention(in_channels=256, num_heads=8, attention_type='0010',
+                                                          convtype=self.convtype)
+                    self.attention_faceKp = GeneralizedAttention(in_channels=256, num_heads=8, attention_type='0010',
+                                                          convtype=self.convtype)
+                    self.attention_carplateDetect = GeneralizedAttention(in_channels=256, num_heads=8, attention_type='0010',
+                                                          convtype=self.convtype)
+                    self.attentionDict = {'detect':self.attention_detect, 'faceDetect':self.attention_faceDetect, 'faceGender':self.attention_faceGender,
+                                          'faceKp':self.attention_faceKp, 'carplate':self.attention_carplateDetect}
 
         if rpn_head is not None:
             rpn_train_cfg = train_cfg.rpn if train_cfg is not None else None
@@ -88,9 +107,13 @@ class TwoStageDetector_SPJC(BaseDetector):
         x_n = []
         if 'backbone_neck' in self.neck_names:
             x1 = self.backbone_neck(x)
+            if hasattr(self, 'attention'):
+                x1 = self.attention_backbone(x1)
             x_n.append(x1)
         if 'task_neck' in self.neck_names:
             x2 = self.neckDict[targetName](x)
+            if hasattr(self, 'attention'):
+                x2 = self.attentionDict[targetName](x2)
             x_n.append(x2)
         x = [[] for i in range (len(x_n[0]))]
         for i in range(len(x_n[0])):

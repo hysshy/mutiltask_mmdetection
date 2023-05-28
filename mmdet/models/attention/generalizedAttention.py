@@ -72,7 +72,7 @@ class GeneralizedAttention(nn.Module):
 
         if self.attention_type[0] or self.attention_type[1]:
             if convtype == 'dcn':
-                self.query_conv = DeformConv2d(
+                self.query_conv = DeformConv2dPack(
                     in_channels=in_channels,
                     out_channels=out_c,
                     padding=1,
