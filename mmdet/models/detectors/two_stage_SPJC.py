@@ -107,12 +107,12 @@ class TwoStageDetector_SPJC(BaseDetector):
         x_n = []
         if 'backbone_neck' in self.neck_names:
             x1 = self.backbone_neck(x)
-            if hasattr(self, 'attention'):
+            if hasattr(self, 'attention_backbone'):
                 x1 = self.attention_backbone(x1)
             x_n.append(x1)
         if 'task_neck' in self.neck_names:
             x2 = self.neckDict[targetName](x)
-            if hasattr(self, 'attention'):
+            if hasattr(self, 'attentionDict'):
                 x2 = self.attentionDict[targetName](x2)
             x_n.append(x2)
         x = [[] for i in range (len(x_n[0]))]
