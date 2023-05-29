@@ -220,9 +220,9 @@ class TwoStageDetector_SPJC(BaseDetector):
                 if 'loss' in name:
                     if isinstance(value, list):
                         for i in range(len(value)):
-                            value[i] = value[i] * fedlw
+                            value[i] = value[i] * (1+fedlw)
                     else:
-                        value = value * fedlw
+                        value = value * (1+fedlw)
                 losses['{}_{}'.format(targetName, name)] = (
                     value)
             # ROI forward and loss
@@ -232,7 +232,7 @@ class TwoStageDetector_SPJC(BaseDetector):
                                                                    **kwargs)
             for name, value in roi_losses.items():
                 if 'loss' in name:
-                    value = value * fedlw
+                    value = value * (1+fedlw)
                 losses['{}_{}'.format(targetName, name)] = (
                     value)
 
@@ -243,7 +243,7 @@ class TwoStageDetector_SPJC(BaseDetector):
                                                            facekp_gt_bboxes)
             for name, value in facekp_roi_losses.items():
                 if 'loss' in name:
-                    value = value * fedlw
+                    value = value * (1+fedlw)
                     # value *= 0.1
                 losses['{}_{}'.format(targetName, name)] = (
                     value)
@@ -265,7 +265,7 @@ class TwoStageDetector_SPJC(BaseDetector):
                                                                        gt_bboxes_ignore)
             for name, value in gender_roi_losses.items():
                 if 'loss' in name:
-                    value = value * fedlw
+                    value = value * (1+fedlw)
                 losses['{}_{}'.format(targetName, name)] = (
                     value)
         return losses
