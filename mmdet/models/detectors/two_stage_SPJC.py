@@ -119,9 +119,9 @@ class TwoStageDetector_SPJC(BaseDetector):
         for i in range(len(x_n[0])):
             for j in range(len(x_n)):
                 if x[i] == []:
-                    x[i] = x_n[j][i] * (1-adaptive_w_dict[targetName])
+                    x[i] = x_n[j][i] / len(x_n)
                 else:
-                    x[i] = x[i] + x_n[j][i] * adaptive_w_dict[targetName]
+                    x[i] = x[i] + x_n[j][i] / len(x_n)
         return x
 
     def forward_dummy(self, img):
