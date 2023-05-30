@@ -48,7 +48,7 @@ class TwoStageDetector_SPJC(BaseDetector):
                 self.neck_faceGender = build_neck(neck)
                 self.neck_faceKp = build_neck(neck)
                 self.neck_carplateDetect = build_neck(neck)
-                self.neckDict = {'detect':self.neck_detect, 'faceDetect':self.neck_faceDetect, 'faceGender':self.neck_faceGender, 'faceKp':self.neck_faceKp, 'carplate':self.neck_carplateDetect}
+                self.neckDict = {'detect':self.neck_detect, 'faceDetect':self.neck_faceDetect, 'faceGender':self.neck_faceGender, 'faceKp':self.neck_faceKp, 'carplateDetect':self.neck_carplateDetect}
 
                 if self.attentionType == 'GA':
                     self.attention_detect = GeneralizedAttention(in_channels=256, num_heads=8, attention_type='0010',
@@ -62,7 +62,7 @@ class TwoStageDetector_SPJC(BaseDetector):
                     self.attention_carplateDetect = GeneralizedAttention(in_channels=256, num_heads=8, attention_type='0010',
                                                           convtype=self.convtype)
                     self.attentionDict = {'detect':self.attention_detect, 'faceDetect':self.attention_faceDetect, 'faceGender':self.attention_faceGender,
-                                          'faceKp':self.attention_faceKp, 'carplate':self.attention_carplateDetect}
+                                          'faceKp':self.attention_faceKp, 'carplateDetect':self.attention_carplateDetect}
 
         if rpn_head is not None:
             rpn_train_cfg = train_cfg.rpn if train_cfg is not None else None
@@ -71,7 +71,7 @@ class TwoStageDetector_SPJC(BaseDetector):
             self.rpn_head_detect = build_head(rpn_head[0])
             self.rpn_head_faceDetect = build_head(rpn_head[1])
             self.rpn_head_carplateDetect = build_head(rpn_head[2])
-            self.rpn_head_Dict = {'detect':self.rpn_head_detect, 'faceDetect':self.rpn_head_faceDetect, 'faceKp':self.rpn_head_faceDetect, 'carplate':self.rpn_head_carplateDetect}
+            self.rpn_head_Dict = {'detect':self.rpn_head_detect, 'faceDetect':self.rpn_head_faceDetect, 'faceKp':self.rpn_head_faceDetect, 'carplateDetect':self.rpn_head_carplateDetect}
 
         if roi_head is not None:
             # update train and test cfg here for now
@@ -85,7 +85,7 @@ class TwoStageDetector_SPJC(BaseDetector):
             self.roi_head_faceKp = build_head(roi_head[2])
             self.roi_head_faceGender = build_head(roi_head[3])
             self.roi_head_carplateDetect = build_head(roi_head[4])
-            self.roi_head_Dict = {'detect':self.roi_head_detect, 'faceDetect':self.roi_head_faceDetect, 'faceGender':self.roi_head_faceGender, 'faceKp':self.roi_head_faceKp, 'carplate':self.roi_head_carplateDetect}
+            self.roi_head_Dict = {'detect':self.roi_head_detect, 'faceDetect':self.roi_head_faceDetect, 'faceGender':self.roi_head_faceGender, 'faceKp':self.roi_head_faceKp, 'carplateDetect':self.roi_head_carplateDetect}
 
 
 
@@ -191,7 +191,7 @@ class TwoStageDetector_SPJC(BaseDetector):
         else:
             fedlw = 1
 
-        adaptive_w_dict = {'detect':1, 'faceDetect':1, 'faceGender':1, 'faceKp':1, 'carplate':1}
+        adaptive_w_dict = {'detect':1, 'faceDetect':1, 'faceGender':1, 'faceKp':1, 'carplateDetect':1}
         if work_dir is not None and os.path.exists(work_dir + '/adaptive_w.txt'):
             with open(work_dir + '/adaptive_w.txt', mode='r') as f:
                 lines = f.readlines()
@@ -200,7 +200,7 @@ class TwoStageDetector_SPJC(BaseDetector):
                     targetName = adaptive_ws[0]
                     adaptive_w = float(adaptive_ws[1])
                     adaptive_w_dict[targetName] = adaptive_w
-                    
+
         targetName = img_metas[0]["filename"].split("/")[-2].split('Imgs')[0]
         x = self.extract_feat(img, targetName, adaptive_w_dict)
         losses = dict()
@@ -209,14 +209,14 @@ class TwoStageDetector_SPJC(BaseDetector):
         facekp_x, facekp_img_metas, facekp_gt_bboxes, facekp_gt_keypoints = labelstransform.findLabelbyFile(x, img_metas, gt_bboxes, gt_labels, gt_keypoints, gt_visibles, 'faceKpImgs', 0)
         faceDetect_x, faceDetect_img_metas, faceDetect_gt_bboxes, faceDetect_gt_labels = labelstransform.findLabelbyFile(x, img_metas, gt_bboxes, gt_labels, gt_keypoints, gt_visibles, 'faceDetectImgs', 0)
         faceGender_x, faceGender_img_metas, faceGender_gt_bboxes, faceGender_gt_labels = labelstransform.findLabelbyFile(x, img_metas, gt_bboxes, gt_labels, gt_keypoints, gt_visibles, 'faceGenderImgs', 0)
-        carplate_x, carplate_img_metas, carplate_gt_bboxes, carplate_gt_labels = labelstransform.findLabelbyFile(x, img_metas, gt_bboxes, gt_labels, gt_keypoints, gt_visibles, 'carplateImgs', 0)
-        x_dict = {'detect':detect_x, 'faceDetect':faceDetect_x, 'faceGender':faceGender_x, 'faceKp':facekp_x, 'carplate':carplate_x}
-        img_metas_dict = {'detect':detect_img_metas, 'faceDetect':faceDetect_img_metas, 'faceGender':faceGender_img_metas, 'faceKp':facekp_img_metas, 'carplate':carplate_img_metas}
-        gt_bboxes_dict = {'detect':detect_gt_bboxes, 'faceDetect':faceDetect_gt_bboxes, 'faceGender':faceGender_gt_bboxes, 'faceKp':facekp_gt_bboxes, 'carplate':carplate_gt_bboxes}
-        gt_labels_dict = {'detect':detect_gt_labels, 'faceDetect':faceDetect_gt_labels, 'faceGender':faceGender_gt_labels, 'faceKp':facekp_gt_keypoints, 'carplate':carplate_gt_labels}
+        carplateDetect_x, carplateDetect_img_metas, carplateDetect_gt_bboxes, carplateDetect_gt_labels = labelstransform.findLabelbyFile(x, img_metas, gt_bboxes, gt_labels, gt_keypoints, gt_visibles, 'carplateImgs', 0)
+        x_dict = {'detect':detect_x, 'faceDetect':faceDetect_x, 'faceGender':faceGender_x, 'faceKp':facekp_x, 'carplateDetect':carplateDetect_x}
+        img_metas_dict = {'detect':detect_img_metas, 'faceDetect':faceDetect_img_metas, 'faceGender':faceGender_img_metas, 'faceKp':facekp_img_metas, 'carplateDetect':carplateDetect_img_metas}
+        gt_bboxes_dict = {'detect':detect_gt_bboxes, 'faceDetect':faceDetect_gt_bboxes, 'faceGender':faceGender_gt_bboxes, 'faceKp':facekp_gt_bboxes, 'carplateDetect':carplateDetect_gt_bboxes}
+        gt_labels_dict = {'detect':detect_gt_labels, 'faceDetect':faceDetect_gt_labels, 'faceGender':faceGender_gt_labels, 'faceKp':facekp_gt_keypoints, 'carplateDetect':carplateDetect_gt_labels}
 
         #检测类任务：社区目标、人脸、车牌
-        if targetName in ['detect', 'faceDetect', 'carplate']:
+        if targetName in ['detect', 'faceDetect', 'carplateDetect']:
             # RPN forward and loss
             proposal_cfg = self.train_cfg.get('rpn_proposal',
                                               self.test_cfg.rpn)
