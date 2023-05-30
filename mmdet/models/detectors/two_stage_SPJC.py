@@ -119,9 +119,9 @@ class TwoStageDetector_SPJC(BaseDetector):
         for i in range(len(x_n[0])):
             for j in range(len(x_n)):
                 if x[i] == []:
-                    x[i] = x_n[j][i]/len(x_n)
+                    x[i] = x_n[j][i] * (1-adaptive_w_dict[targetName])
                 else:
-                    x[i] = x[i] + x_n[j][i] / len(x_n) * adaptive_w_dict[targetName]
+                    x[i] = x[i] + x_n[j][i] * adaptive_w_dict[targetName]
         return x
 
     def forward_dummy(self, img):
@@ -191,7 +191,7 @@ class TwoStageDetector_SPJC(BaseDetector):
         else:
             fedlw = 1
 
-        adaptive_w_dict = {'detect':1, 'faceDetect':1, 'faceGender':1, 'faceKp':1, 'carplateDetect':1}
+        adaptive_w_dict = {'detect':0.5, 'faceDetect':0.5, 'faceGender':0.5, 'faceKp':0.5, 'carplateDetect':0.5}
         if work_dir is not None and os.path.exists(work_dir + '/adaptive_w.txt'):
             with open(work_dir + '/adaptive_w.txt', mode='r') as f:
                 lines = f.readlines()
