@@ -200,8 +200,7 @@ class TwoStageDetector_SPJC(BaseDetector):
                     targetName = adaptive_ws[0]
                     adaptive_w = float(adaptive_ws[1])
                     adaptive_w_dict[targetName] = adaptive_w
-        print(adaptive_w_dict)
-
+                    
         targetName = img_metas[0]["filename"].split("/")[-2].split('Imgs')[0]
         x = self.extract_feat(img, targetName, adaptive_w_dict)
         losses = dict()
