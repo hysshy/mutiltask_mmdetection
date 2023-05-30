@@ -209,7 +209,7 @@ class TwoStageDetector_SPJC(BaseDetector):
         facekp_x, facekp_img_metas, facekp_gt_bboxes, facekp_gt_keypoints = labelstransform.findLabelbyFile(x, img_metas, gt_bboxes, gt_labels, gt_keypoints, gt_visibles, 'faceKpImgs', 0)
         faceDetect_x, faceDetect_img_metas, faceDetect_gt_bboxes, faceDetect_gt_labels = labelstransform.findLabelbyFile(x, img_metas, gt_bboxes, gt_labels, gt_keypoints, gt_visibles, 'faceDetectImgs', 0)
         faceGender_x, faceGender_img_metas, faceGender_gt_bboxes, faceGender_gt_labels = labelstransform.findLabelbyFile(x, img_metas, gt_bboxes, gt_labels, gt_keypoints, gt_visibles, 'faceGenderImgs', 0)
-        carplateDetect_x, carplateDetect_img_metas, carplateDetect_gt_bboxes, carplateDetect_gt_labels = labelstransform.findLabelbyFile(x, img_metas, gt_bboxes, gt_labels, gt_keypoints, gt_visibles, 'carplateImgs', 0)
+        carplateDetect_x, carplateDetect_img_metas, carplateDetect_gt_bboxes, carplateDetect_gt_labels = labelstransform.findLabelbyFile(x, img_metas, gt_bboxes, gt_labels, gt_keypoints, gt_visibles, 'carplateDetectImgs', 0)
         x_dict = {'detect':detect_x, 'faceDetect':faceDetect_x, 'faceGender':faceGender_x, 'faceKp':facekp_x, 'carplateDetect':carplateDetect_x}
         img_metas_dict = {'detect':detect_img_metas, 'faceDetect':faceDetect_img_metas, 'faceGender':faceGender_img_metas, 'faceKp':facekp_img_metas, 'carplateDetect':carplateDetect_img_metas}
         gt_bboxes_dict = {'detect':detect_gt_bboxes, 'faceDetect':faceDetect_gt_bboxes, 'faceGender':faceGender_gt_bboxes, 'faceKp':facekp_gt_bboxes, 'carplateDetect':carplateDetect_gt_bboxes}
