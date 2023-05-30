@@ -18,7 +18,8 @@ def single_gpu_test(model,
                     data_loader,
                     show=False,
                     out_dir=None,
-                    show_score_thr=0.3):
+                    show_score_thr=0.3,
+                    adaptive_w_dict=None):
     model.eval()
     results = []
     dataset = data_loader.dataset
@@ -26,6 +27,9 @@ def single_gpu_test(model,
     prog_bar = mmcv.ProgressBar(len(dataset))
     for i, data in enumerate(data_loader):
         with torch.no_grad():
+            if adaptive_w_dict is not None:
+                # data中加入adaptive_w_dict
+                data.setdefault("adaptive_w_dict", adaptive_w_dict)
             result = model(return_loss=False, rescale=True, **data)
 
         batch_size = len(result)

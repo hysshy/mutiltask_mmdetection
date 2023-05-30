@@ -90,7 +90,7 @@ class LoadImage:
         return results
 
 
-def inference_detector(model, imgs, pre_bboxes=None):
+def inference_detector(model, imgs, pre_bboxes=None, adaptive_w_dict=None):
     """Inference image(s) with the detector.
 
     Args:
@@ -146,8 +146,11 @@ def inference_detector(model, imgs, pre_bboxes=None):
                 m, RoIPool
             ), 'CPU inference with RoIPool is not supported currently.'
     if pre_bboxes is not None:
-        # data中加入电子围栏数据
+        # data中加入pre_bboxes
         data.setdefault("pre_bboxes", pre_bboxes)
+    if adaptive_w_dict is not None:
+        # data中加入adaptive_w_dict
+        data.setdefault("adaptive_w_dict", adaptive_w_dict)
     # forward the model
     with torch.no_grad():
         results = model(return_loss=False, rescale=True, **data)

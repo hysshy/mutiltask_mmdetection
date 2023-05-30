@@ -100,7 +100,7 @@ class TwoStageDetector_SPJC(BaseDetector):
     def with_roi_head(self):
         return hasattr(self, 'roi_head') and self.roi_head is not None
 
-    def extract_feat(self, img, targetName):
+    def extract_feat(self, img, targetName, adaptive_w_dict):
         """Directly extract features from the backbone+neck
         """
         x = self.backbone(img)
@@ -121,7 +121,7 @@ class TwoStageDetector_SPJC(BaseDetector):
                 if x[i] == []:
                     x[i] = x_n[j][i]/len(x_n)
                 else:
-                    x[i] = x[i] + x_n[j][i] / len(x_n)
+                    x[i] = x[i] + x_n[j][i] / len(x_n) * adaptive_w_dict[targetName]
         return x
 
     def forward_dummy(self, img):
@@ -190,8 +190,20 @@ class TwoStageDetector_SPJC(BaseDetector):
                 fedlw = float(fedlws[1])
         else:
             fedlw = 1
+
+        adaptive_w_dict = {}
+        if work_dir is not None and os.path.exists(work_dir + '/adaptive_w.txt'):
+            with open(work_dir + '/adaptive_w.txt', mode='r') as f:
+                lines = f.readlines()
+                for i in range(len(lines)):
+                    adaptive_ws = lines[i].strip('\n').split(':')
+                    targetName = adaptive_ws[0]
+                    adaptive_w = float(adaptive_ws[1])
+                    adaptive_w_dict.setdefault(targetName, adaptive_w)
+        print(adaptive_w_dict)
+
         targetName = img_metas[0]["filename"].split("/")[-2].split('Imgs')[0]
-        x = self.extract_feat(img, targetName)
+        x = self.extract_feat(img, targetName, adaptive_w_dict)
         losses = dict()
         # 区分人脸标签和姿态标签
         detect_x, detect_img_metas, detect_gt_bboxes, detect_gt_labels = labelstransform.findLabelbyFile(x, img_metas, gt_bboxes, gt_labels, gt_keypoints, gt_visibles, 'detectImgs', 0)
@@ -306,10 +318,10 @@ class TwoStageDetector_SPJC(BaseDetector):
         return iouLine
 
 
-    def simple_test(self, img, img_metas, proposals=None, rescale=False, points=None, pre_bboxes=None):
+    def simple_test(self, img, img_metas, proposals=None, rescale=False, points=None, pre_bboxes=None, adaptive_w_dict=None):
         """Test without augmentation."""
         targetName = img_metas[0]["filename"].split("/")[-2].split('Imgs')[0]
-        x = self.extract_feat(img, targetName)
+        x = self.extract_feat(img, targetName, adaptive_w_dict)
         # 根据pre_bboxes进行检测
         if pre_bboxes is not None:
             pre_bboxes = torch.from_numpy(np.array(pre_bboxes))
