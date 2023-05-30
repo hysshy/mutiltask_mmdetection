@@ -191,7 +191,7 @@ class TwoStageDetector_SPJC(BaseDetector):
         else:
             fedlw = 1
 
-        adaptive_w_dict = {}
+        adaptive_w_dict = {'detect':1, 'faceDetect':1, 'faceGender':1, 'faceKp':1, 'carplate':1}
         if work_dir is not None and os.path.exists(work_dir + '/adaptive_w.txt'):
             with open(work_dir + '/adaptive_w.txt', mode='r') as f:
                 lines = f.readlines()
@@ -199,7 +199,7 @@ class TwoStageDetector_SPJC(BaseDetector):
                     adaptive_ws = lines[i].strip('\n').split(':')
                     targetName = adaptive_ws[0]
                     adaptive_w = float(adaptive_ws[1])
-                    adaptive_w_dict.setdefault(targetName, adaptive_w)
+                    adaptive_w_dict[targetName] = adaptive_w
         print(adaptive_w_dict)
 
         targetName = img_metas[0]["filename"].split("/")[-2].split('Imgs')[0]
