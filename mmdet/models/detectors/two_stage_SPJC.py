@@ -104,9 +104,11 @@ class TwoStageDetector_SPJC(BaseDetector):
         """Directly extract features from the backbone+neck
         """
         x = self.backbone(img)
-        x1 = self.backbone_neck(x)
-        x2 = self.neckDict[targetName](x)
-        x = self.attention_backbone(x2, x1)
+        x = self.backbone_neck(x)
+        # x = self.backbone(img)
+        # x1 = self.backbone_neck(x)
+        # x2 = self.neckDict[targetName](x)
+        # x = self.attention_backbone(x2, x1)
 
         # x = self.backbone(img)
         # x_n = []
