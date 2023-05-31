@@ -242,13 +242,14 @@ class GeneralizedAttention(nn.Module):
             ((h_diff / dim_mat).sin(), (h_diff / dim_mat).cos()), dim=2)
 
         return embedding_x, embedding_y
-    def forward(self, x):
-        x = list(x)
-        for i in range(len(x)):
-            x[i] = self.forward_single(x[i])
-        return x
+    def forward(self, x_input, x_output):
+        x_input = list(x_input)
+        x_output = list(x_output)
+        for i in range(len(x_input)):
+            x_output[i] = self.forward_single(x_input[i], x_output[i])
+        return x_output
 
-    def forward_single(self, x_input: torch.Tensor) -> torch.Tensor:
+    def forward_single(self, x_input: torch.Tensor, x_output: torch.Tensor) -> torch.Tensor:
         num_heads = self.num_heads
 
         # use empirical_attention
@@ -433,7 +434,7 @@ class GeneralizedAttention(nn.Module):
                 mode='bilinear',
                 align_corners=False)
 
-        out = self.gamma * out + x_input
+        out = self.gamma * out + x_output
         return out
 
     def init_weights(self):

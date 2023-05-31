@@ -104,24 +104,29 @@ class TwoStageDetector_SPJC(BaseDetector):
         """Directly extract features from the backbone+neck
         """
         x = self.backbone(img)
-        x_n = []
-        if 'backbone_neck' in self.neck_names:
-            x1 = self.backbone_neck(x)
-            if hasattr(self, 'attention_backbone'):
-                x1 = self.attention_backbone(x1)
-            x_n.append(x1)
-        if 'task_neck' in self.neck_names:
-            x2 = self.neckDict[targetName](x)
-            if hasattr(self, 'attentionDict'):
-                x2 = self.attentionDict[targetName](x2)
-            x_n.append(x2)
-        x = [[] for i in range (len(x_n[0]))]
-        for i in range(len(x_n[0])):
-            for j in range(len(x_n)):
-                if x[i] == []:
-                    x[i] = x_n[j][i] * (1-adaptive_w_dict[targetName])
-                else:
-                    x[i] = x[i] + x_n[j][i] * adaptive_w_dict[targetName]
+        x1 = self.backbone_neck(x)
+        x2 = self.neckDict[targetName](x)
+        x = self.attention_backbone(x2, x1)
+
+        # x = self.backbone(img)
+        # x_n = []
+        # if 'backbone_neck' in self.neck_names:
+        #     x1 = self.backbone_neck(x)
+        #     if hasattr(self, 'attention_backbone'):
+        #         x1 = self.attention_backbone(x1)
+        #     x_n.append(x1)
+        # if 'task_neck' in self.neck_names:
+        #     x2 = self.neckDict[targetName](x)
+        #     if hasattr(self, 'attentionDict'):
+        #         x2 = self.attentionDict[targetName](x2)
+        #     x_n.append(x2)
+        # x = [[] for i in range (len(x_n[0]))]
+        # for i in range(len(x_n[0])):
+        #     for j in range(len(x_n)):
+        #         if x[i] == []:
+        #             x[i] = x_n[j][i] * (1-adaptive_w_dict[targetName])
+        #         else:
+        #             x[i] = x[i] + x_n[j][i] * adaptive_w_dict[targetName]
         return x
 
     def forward_dummy(self, img):
@@ -191,7 +196,7 @@ class TwoStageDetector_SPJC(BaseDetector):
         else:
             fedlw = 1
 
-        adaptive_w_dict = {'detect':0.5, 'faceDetect':0.5, 'faceGender':0.5, 'faceKp':0.5, 'carplateDetect':0.5}
+        adaptive_w_dict = {'detect':0.5, 'faceDetect':0.5, 'faceGender':0, 'faceKp':0.5, 'carplateDetect':0.5}
         if work_dir is not None and os.path.exists(work_dir + '/adaptive_w.txt'):
             with open(work_dir + '/adaptive_w.txt', mode='r') as f:
                 lines = f.readlines()
