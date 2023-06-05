@@ -189,24 +189,14 @@ class TwoStageDetector_SPJC(BaseDetector):
         Returns:
             dict[str, Tensor]: a dictionary of loss components
         """
-        if work_dir is not None and os.path.exists(work_dir + '/fedlw.txt'):
-            with open(work_dir + '/fedlw.txt', mode='r') as f:
+        if work_dir is not None and os.path.exists(work_dir + '/fedbl.txt'):
+            with open(work_dir + '/fedbl.txt', mode='r') as f:
                 lines = f.readlines()
-                fedlws = lines[-1].strip('\n').split(':')
-                assert 'fedlw' == fedlws[0]
-                fedlw = float(fedlws[1])
+                fedbls = lines[-1].strip('\n').split(':')
+                assert 'bl_w' == fedbls[0]
+                fedbl = float(fedbls[1])
         else:
-            fedlw = 1
-
-        adaptive_w_dict = {'detect':0.5, 'faceDetect':0.5, 'faceGender':0, 'faceKp':0.5, 'carplateDetect':0.5}
-        if work_dir is not None and os.path.exists(work_dir + '/adaptive_w.txt'):
-            with open(work_dir + '/adaptive_w.txt', mode='r') as f:
-                lines = f.readlines()
-                for i in range(len(lines)):
-                    adaptive_ws = lines[i].strip('\n').split(':')
-                    targetName = adaptive_ws[0]
-                    adaptive_w = float(adaptive_ws[1])
-                    adaptive_w_dict[targetName] = adaptive_w
+            fedbl = 1
 
         targetName = img_metas[0]["filename"].split("/")[-2].split('Imgs')[0]
         x = self.extract_feat(img, targetName, adaptive_w_dict)
@@ -238,9 +228,9 @@ class TwoStageDetector_SPJC(BaseDetector):
                 if 'loss' in name:
                     if isinstance(value, list):
                         for i in range(len(value)):
-                            value[i] = value[i] * fedlw
+                            value[i] = value[i] * fedbl
                     else:
-                        value = value * fedlw
+                        value = value * fedbl
                 losses['{}_{}'.format(targetName, name)] = (
                     value)
             # ROI forward and loss
@@ -250,7 +240,7 @@ class TwoStageDetector_SPJC(BaseDetector):
                                                                    **kwargs)
             for name, value in roi_losses.items():
                 if 'loss' in name:
-                    value = value * fedlw
+                    value = value * fedbl
                 losses['{}_{}'.format(targetName, name)] = (
                     value)
 
@@ -261,7 +251,7 @@ class TwoStageDetector_SPJC(BaseDetector):
                                                            facekp_gt_bboxes)
             for name, value in facekp_roi_losses.items():
                 if 'loss' in name:
-                    value = value * fedlw
+                    value = value * fedbl
                     # value *= 0.1
                 losses['{}_{}'.format(targetName, name)] = (
                     value)
@@ -283,7 +273,7 @@ class TwoStageDetector_SPJC(BaseDetector):
                                                                        gt_bboxes_ignore)
             for name, value in gender_roi_losses.items():
                 if 'loss' in name:
-                    value = value * fedlw
+                    value = value * fedbl
                 losses['{}_{}'.format(targetName, name)] = (
                     value)
         return losses
