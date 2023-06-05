@@ -199,7 +199,7 @@ class TwoStageDetector_SPJC(BaseDetector):
             fedbl = 1
 
         targetName = img_metas[0]["filename"].split("/")[-2].split('Imgs')[0]
-        x = self.extract_feat(img, targetName, adaptive_w_dict)
+        x = self.extract_feat(img, targetName, None)
         losses = dict()
         # 区分人脸标签和姿态标签
         detect_x, detect_img_metas, detect_gt_bboxes, detect_gt_labels = labelstransform.findLabelbyFile(x, img_metas, gt_bboxes, gt_labels, gt_keypoints, gt_visibles, 'detectImgs', 0)
