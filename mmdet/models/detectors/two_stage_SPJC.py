@@ -103,12 +103,12 @@ class TwoStageDetector_SPJC(BaseDetector):
     def extract_feat(self, img, targetName, adaptive_w_dict):
         """Directly extract features from the backbone+neck
         """
-        x = self.backbone(img)
-        x = self.backbone_neck(x)
         # x = self.backbone(img)
-        # x1 = self.backbone_neck(x)
-        # x2 = self.neckDict[targetName](x)
-        # x = self.attention_backbone(x2, x1)
+        # x = self.backbone_neck(x)
+        x = self.backbone(img)
+        x1 = self.backbone_neck(x)
+        x2 = self.neckDict[targetName](x)
+        x = self.attention_backbone(x2, x1)
 
         # x = self.backbone(img)
         # x_n = []
@@ -238,9 +238,9 @@ class TwoStageDetector_SPJC(BaseDetector):
                 if 'loss' in name:
                     if isinstance(value, list):
                         for i in range(len(value)):
-                            value[i] = value[i] * (1+fedlw)
+                            value[i] = value[i] * fedlw
                     else:
-                        value = value * (1+fedlw)
+                        value = value * fedlw
                 losses['{}_{}'.format(targetName, name)] = (
                     value)
             # ROI forward and loss
@@ -250,7 +250,7 @@ class TwoStageDetector_SPJC(BaseDetector):
                                                                    **kwargs)
             for name, value in roi_losses.items():
                 if 'loss' in name:
-                    value = value * (1+fedlw)
+                    value = value * fedlw
                 losses['{}_{}'.format(targetName, name)] = (
                     value)
 
@@ -261,7 +261,7 @@ class TwoStageDetector_SPJC(BaseDetector):
                                                            facekp_gt_bboxes)
             for name, value in facekp_roi_losses.items():
                 if 'loss' in name:
-                    value = value * (1+fedlw)
+                    value = value * fedlw
                     # value *= 0.1
                 losses['{}_{}'.format(targetName, name)] = (
                     value)
@@ -283,7 +283,7 @@ class TwoStageDetector_SPJC(BaseDetector):
                                                                        gt_bboxes_ignore)
             for name, value in gender_roi_losses.items():
                 if 'loss' in name:
-                    value = value * (1+fedlw)
+                    value = value * fedlw
                 losses['{}_{}'.format(targetName, name)] = (
                     value)
         return losses
