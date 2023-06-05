@@ -120,7 +120,7 @@ def train_detector(model,
                    validate=False,
                    timestamp=None,
                    meta=None,
-                   fed_lw=False):
+                   fedbl=False):
 
     cfg = compat_cfg(cfg)
     logger = get_root_logger(log_level=cfg.log_level)
@@ -241,7 +241,7 @@ def train_detector(model,
         runner.resume(cfg.resume_from)
     elif cfg.load_from:
         runner.load_checkpoint(cfg.load_from)
-    if fed_lw:
+    if fedbl:
         runner.run(data_loaders, cfg.workflow, **{'work_dir':cfg.work_dir})
     else:
         runner.run(data_loaders, cfg.workflow)
