@@ -10,7 +10,7 @@ from mmdet.models.attention.generalizedAttention import GeneralizedAttention
 
 
 @DETECTORS.register_module()
-class TwoStageDetector_SPJC(BaseDetector):
+class TwoStageDetector_SPJC_Public(BaseDetector):
     """Base class for two-stage detectors.
 
     Two-stage detectors typically consisting of a region proposal network and a
@@ -26,7 +26,7 @@ class TwoStageDetector_SPJC(BaseDetector):
                  test_cfg=None,
                  pretrained=None,
                  init_cfg=None):
-        super(TwoStageDetector_SPJC, self).__init__(init_cfg)
+        super(TwoStageDetector_SPJC_Public, self).__init__(init_cfg)
         if pretrained:
             warnings.warn('DeprecationWarning: pretrained is deprecated, '
                           'please use "init_cfg" instead')
@@ -43,35 +43,26 @@ class TwoStageDetector_SPJC(BaseDetector):
                     self.attention_backbone = GeneralizedAttention(in_channels=256, num_heads=8, attention_type='0010',
                                                           convtype=self.convtype)
             if 'task_neck' in self.neck_names:
-                self.neck_detect = build_neck(neck)
                 self.neck_faceDetect = build_neck(neck)
                 self.neck_faceGender = build_neck(neck)
                 self.neck_faceKp = build_neck(neck)
-                self.neck_carplateDetect = build_neck(neck)
-                self.neckDict = {'detect':self.neck_detect, 'faceDetect':self.neck_faceDetect, 'faceGender':self.neck_faceGender, 'faceKp':self.neck_faceKp, 'carplateDetect':self.neck_carplateDetect}
-
+                self.neckDict = {'faceDetect':self.neck_faceDetect, 'faceGender':self.neck_faceGender, 'faceKp':self.neck_faceKp}
                 if self.attentionType == 'GA':
-                    self.attention_detect = GeneralizedAttention(in_channels=256, num_heads=8, attention_type='0010',
-                                                          convtype=self.convtype)
                     self.attention_faceDetect = GeneralizedAttention(in_channels=256, num_heads=8, attention_type='0010',
                                                           convtype=self.convtype)
                     self.attention_faceGender = GeneralizedAttention(in_channels=256, num_heads=8, attention_type='0010',
                                                           convtype=self.convtype)
                     self.attention_faceKp = GeneralizedAttention(in_channels=256, num_heads=8, attention_type='0010',
                                                           convtype=self.convtype)
-                    self.attention_carplateDetect = GeneralizedAttention(in_channels=256, num_heads=8, attention_type='0010',
-                                                          convtype=self.convtype)
-                    self.attentionDict = {'detect':self.attention_detect, 'faceDetect':self.attention_faceDetect, 'faceGender':self.attention_faceGender,
-                                          'faceKp':self.attention_faceKp, 'carplateDetect':self.attention_carplateDetect}
+                    self.attentionDict = {'faceDetect':self.attention_faceDetect, 'faceGender':self.attention_faceGender,
+                                          'faceKp':self.attention_faceKp}
 
         if rpn_head is not None:
             rpn_train_cfg = train_cfg.rpn if train_cfg is not None else None
             for i in range(len(rpn_head)):
                 rpn_head[i].update(train_cfg=rpn_train_cfg, test_cfg=test_cfg.rpn)
-            self.rpn_head_detect = build_head(rpn_head[0])
-            self.rpn_head_faceDetect = build_head(rpn_head[1])
-            self.rpn_head_carplateDetect = build_head(rpn_head[2])
-            self.rpn_head_Dict = {'detect':self.rpn_head_detect, 'faceDetect':self.rpn_head_faceDetect, 'faceKp':self.rpn_head_faceDetect, 'carplateDetect':self.rpn_head_carplateDetect}
+            self.rpn_head_faceDetect = build_head(rpn_head[0])
+            self.rpn_head_Dict = {'faceDetect':self.rpn_head_faceDetect, 'faceKp':self.rpn_head_faceDetect}
 
         if roi_head is not None:
             # update train and test cfg here for now
@@ -80,14 +71,10 @@ class TwoStageDetector_SPJC(BaseDetector):
             for i in range(len(roi_head)):
                 roi_head[i].update(train_cfg=rcnn_train_cfg)
                 roi_head[i].update(test_cfg=test_cfg.rcnn)
-            self.roi_head_detect = build_head(roi_head[0])
-            self.roi_head_faceDetect = build_head(roi_head[1])
-            self.roi_head_faceKp = build_head(roi_head[2])
-            self.roi_head_faceGender = build_head(roi_head[3])
-            self.roi_head_carplateDetect = build_head(roi_head[4])
-            self.roi_head_Dict = {'detect':self.roi_head_detect, 'faceDetect':self.roi_head_faceDetect, 'faceGender':self.roi_head_faceGender, 'faceKp':self.roi_head_faceKp, 'carplateDetect':self.roi_head_carplateDetect}
-
-
+            self.roi_head_faceDetect = build_head(roi_head[0])
+            self.roi_head_faceKp = build_head(roi_head[1])
+            self.roi_head_faceGender = build_head(roi_head[2])
+            self.roi_head_Dict = {'faceDetect':self.roi_head_faceDetect, 'faceGender':self.roi_head_faceGender, 'faceKp':self.roi_head_faceKp}
 
         self.train_cfg = train_cfg
         self.test_cfg = test_cfg

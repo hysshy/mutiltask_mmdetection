@@ -47,6 +47,7 @@ from .yolox import YOLOX
 from .two_stage_SPJC_faceQt_faceKp import TwoStageDetector_SPJC_FaceQt_FaceKp
 from .two_stage_SPJGH_faceQt_faceKp import TwoStageDetector_SPJGH_FaceQt_FaceKp
 from .two_stage_SPJC import TwoStageDetector_SPJC
+from .two_stage_SPJC_Public import TwoStageDetector_SPJC_Public
 
 __all__ = [
     'ATSS', 'BaseDetector', 'SingleStageDetector', 'TwoStageDetector', 'RPN',
@@ -58,5 +59,5 @@ __all__ = [
     'SOLOv2', 'DeformableDETR', 'AutoAssign', 'YOLOF', 'CenterNet', 'YOLOX',
     'TwoStagePanopticSegmentor', 'PanopticFPN', 'QueryInst', 'LAD', 'TOOD',
     'MaskFormer', 'DDOD', 'Mask2Former', 'TwoStageDetector_SPJC_FaceQt_FaceKp',
-    'TwoStageDetector_SPJGH_FaceQt_FaceKp', 'TwoStageDetector_SPJC'
+    'TwoStageDetector_SPJGH_FaceQt_FaceKp', 'TwoStageDetector_SPJC', 'TwoStageDetector_SPJC_Public'
 ]
