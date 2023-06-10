@@ -68,13 +68,20 @@ class TwoStageDetector_SPJC_Public(BaseDetector):
             # update train and test cfg here for now
             # TODO: refactor assigner & sampler
             rcnn_train_cfg = train_cfg.rcnn if train_cfg is not None else None
+            self.roi_head_Dict = {}
             for i in range(len(roi_head)):
                 roi_head[i].update(train_cfg=rcnn_train_cfg)
                 roi_head[i].update(test_cfg=test_cfg.rcnn)
-            self.roi_head_faceDetect = build_head(roi_head[0])
-            self.roi_head_faceKp = build_head(roi_head[1])
-            self.roi_head_faceGender = build_head(roi_head[2])
-            self.roi_head_Dict = {'faceDetect':self.roi_head_faceDetect, 'faceGender':self.roi_head_faceGender, 'faceKp':self.roi_head_faceKp}
+                roi_head_type = roi_head[i].pop('roi_head_type')
+                if roi_head_type == 'faceDetect':
+                    self.roi_head_faceDetect = build_head(roi_head[i])
+                    self.roi_head_Dict.setdefault(roi_head_type, self.roi_head_faceDetect)
+                elif roi_head_type == 'faceGender':
+                    self.roi_head_faceGender = build_head(roi_head[i])
+                    self.roi_head_Dict.setdefault(roi_head_type, self.roi_head_faceGender)
+                elif roi_head_type == 'faceKp':
+                    self.roi_head_faceKp = build_head(roi_head[i])
+                    self.roi_head_Dict.setdefault(roi_head_type, self.roi_head_faceKp)
 
         self.train_cfg = train_cfg
         self.test_cfg = test_cfg
@@ -90,13 +97,14 @@ class TwoStageDetector_SPJC_Public(BaseDetector):
     def extract_feat(self, img, targetName, adaptive_w_dict):
         """Directly extract features from the backbone+neck
         """
-        x = self.backbone(img)
-        x = self.backbone_neck(x)
-        # x = self.backbone(img)
-        # x1 = self.backbone_neck(x)
-        # x2 = self.neckDict[targetName](x)
-        # x = self.attention_backbone(x2, x1)
-
+        if self.attentionType == 'GA':
+            x = self.backbone(img)
+            x1 = self.backbone_neck(x)
+            x2 = self.neckDict[targetName](x)
+            x = self.attention_backbone(x2, x1)
+        else:
+            x = self.backbone(img)
+            x = self.backbone_neck(x)
         # x = self.backbone(img)
         # x_n = []
         # if 'backbone_neck' in self.neck_names:
