@@ -95,6 +95,28 @@ class TwoStageDetector_SPJC_Public(BaseDetector):
                                                               convtype=self.convtype)
                         self.attentionDict.setdefault(roi_head_type, self.attention_faceKp)
 
+                elif roi_head_type == 'carDetect':
+                    self.roi_head_carDetect = build_head(roi_head[i])
+                    self.roi_head_Dict.setdefault(roi_head_type, self.roi_head_carDetect)
+                    if 'task_neck' in self.neck_names:
+                        self.neck_carDetect = build_neck(neck)
+                        self.neckDict.setdefault(roi_head_type, self.neck_carDetect)
+                    if self.attentionType == 'GA2':
+                        self.attention_carDetect = GeneralizedAttention(in_channels=256, num_heads=8, attention_type='0010',
+                                                              convtype=self.convtype)
+                        self.attentionDict.setdefault(roi_head_type, self.attention_carDetect)
+
+                elif roi_head_type == 'carplateDetect':
+                    self.roi_head_carplateDetect = build_head(roi_head[i])
+                    self.roi_head_Dict.setdefault(roi_head_type, self.roi_head_carplateDetect)
+                    if 'task_neck' in self.neck_names:
+                        self.neck_carplateDetect = build_neck(neck)
+                        self.neckDict.setdefault(roi_head_type, self.neck_carplateDetect)
+                    if self.attentionType == 'GA2':
+                        self.attention_carplateDetect = GeneralizedAttention(in_channels=256, num_heads=8, attention_type='0010',
+                                                              convtype=self.convtype)
+                        self.attentionDict.setdefault(roi_head_type, self.attention_carplateDetect)
+
 
         self.train_cfg = train_cfg
         self.test_cfg = test_cfg
@@ -228,7 +250,7 @@ class TwoStageDetector_SPJC_Public(BaseDetector):
         # gt_labels_dict = {'detect':detect_gt_labels, 'faceDetect':faceDetect_gt_labels, 'faceGender':faceGender_gt_labels, 'faceKp':facekp_gt_keypoints, 'carplateDetect':carplateDetect_gt_labels}
 
         #检测类任务：社区目标、人脸、车牌
-        if targetName in ['detect', 'faceDetect', 'carplateDetect', 'carDetect']:
+        if targetName in ['detect', 'faceDetect', 'carplateDetect', 'carDetect', 'carplateDetect']:
             # RPN forward and loss
             proposal_cfg = self.train_cfg.get('rpn_proposal',
                                               self.test_cfg.rpn)
