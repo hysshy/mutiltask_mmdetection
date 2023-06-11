@@ -3,6 +3,9 @@ from ..builder import DETECTORS, build_backbone, build_head, build_neck
 from .base import BaseDetector
 from . import labelstransform
 import warnings
+from mmcv.ops.multi_scale_deform_attn import MultiScaleDeformableAttention
+from mmcv.ops.deform_conv import DeformConv2d
+
 
 @DETECTORS.register_module()
 class TwoStageDetector_SPJC_FaceQt_FaceKp(BaseDetector):
@@ -30,7 +33,12 @@ class TwoStageDetector_SPJC_FaceQt_FaceKp(BaseDetector):
 
         if neck is not None:
             self.neck = build_neck(neck)
-
+            # self.msda = MultiScaleDeformableAttention(
+            #     embed_dims=256,
+            #     num_heads=8,
+            #     batch_first=True,
+            #     dropout=0.1,
+            # )
         if rpn_head is not None:
             rpn_train_cfg = train_cfg.rpn if train_cfg is not None else None
             rpn_head_ = rpn_head.copy()
@@ -66,6 +74,9 @@ class TwoStageDetector_SPJC_FaceQt_FaceKp(BaseDetector):
         x = self.backbone(img)
         if self.with_neck:
             x = self.neck(x)
+        # x = list(x)
+        # for i in range(len(x)):
+        #     x[i] = self.msda(x[i])
         return x
 
     def forward_dummy(self, img):
