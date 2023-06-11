@@ -45,10 +45,16 @@ class TwoStageDetector_SPJC_Public(BaseDetector):
 
         if rpn_head is not None:
             rpn_train_cfg = train_cfg.rpn if train_cfg is not None else None
+            self.rpn_head_Dict = {}
             for i in range(len(rpn_head)):
+                rpn_head_type = rpn_head[i].pop('rpn_head_type')
                 rpn_head[i].update(train_cfg=rpn_train_cfg, test_cfg=test_cfg.rpn)
-            self.rpn_head_faceDetect = build_head(rpn_head[0])
-            self.rpn_head_Dict = {'faceDetect':self.rpn_head_faceDetect, 'faceKp':self.rpn_head_faceDetect}
+                if rpn_head_type == 'faceDetect':
+                    self.rpn_head_faceDetect = build_head(rpn_head[i])
+                    self.rpn_head_Dict.setdefault(rpn_head_type, self.rpn_head_faceDetect)
+                elif rpn_head_type == 'carplateDetect':
+                    self.rpn_head_carplateDetect = build_head(rpn_head[i])
+                    self.rpn_head_Dict.setdefault(rpn_head_type, self.rpn_head_carplateDetect)
 
         if roi_head is not None:
             # update train and test cfg here for now
