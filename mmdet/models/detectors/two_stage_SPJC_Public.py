@@ -1,5 +1,5 @@
 import os.path
-
+import math
 import torch
 from ..builder import DETECTORS, build_backbone, build_head, build_neck
 from .base import BaseDetector
@@ -58,6 +58,9 @@ class TwoStageDetector_SPJC_Public(BaseDetector):
                 elif rpn_head_type == 'carDetect':
                     self.rpn_head_carDetect = build_head(rpn_head[i])
                     self.rpn_head_Dict.setdefault(rpn_head_type, self.rpn_head_carDetect)
+                elif rpn_head_type == 'cocoDetect':
+                    self.rpn_head_cocoDetect = build_head(rpn_head[i])
+                    self.rpn_head_Dict.setdefault(rpn_head_type, self.rpn_head_cocoDetect)
 
         if roi_head is not None:
             # update train and test cfg here for now
@@ -125,6 +128,17 @@ class TwoStageDetector_SPJC_Public(BaseDetector):
                         self.attention_carplateDetect = GeneralizedAttention(in_channels=256, num_heads=8, attention_type='0010',
                                                               convtype=self.convtype)
                         self.attentionDict.setdefault(roi_head_type, self.attention_carplateDetect)
+
+                elif roi_head_type == 'cocoDetect':
+                    self.roi_head_cocoDetect = build_head(roi_head[i])
+                    self.roi_head_Dict.setdefault(roi_head_type, self.roi_head_cocoDetect)
+                    if 'task_neck' in self.neck_names:
+                        self.neck_cocoDetect = build_neck(neck)
+                        self.neckDict.setdefault(roi_head_type, self.neck_cocoDetect)
+                    if self.attentionType == 'GA2':
+                        self.attention_cocoDetect = GeneralizedAttention(in_channels=256, num_heads=8, attention_type='0010',
+                                                              convtype=self.convtype)
+                        self.attentionDict.setdefault(roi_head_type, self.attention_cocoDetect)
 
 
         self.train_cfg = train_cfg
@@ -239,10 +253,15 @@ class TwoStageDetector_SPJC_Public(BaseDetector):
             with open(work_dir + '/fedbl.txt', mode='r') as f:
                 lines = f.readlines()
                 fedbls = lines[-1].strip('\n').split(':')
+                lastlosslines = lines[-2].strip('\n').split(':')
                 assert 'bl_w' == fedbls[0]
+                assert 'loss' == lastlosslines[0]
+                lastfedbl = fedbl
                 fedbl = float(fedbls[1])
+                lastloss = float(lastlosslines[1])/lastfedbl
         else:
             fedbl = 1
+            lastloss = 0
 
         targetName = img_metas[0]["filename"].split("/")[-2].split('Imgs')[0]
         x = self.extract_feat(img, targetName, None)
@@ -259,7 +278,7 @@ class TwoStageDetector_SPJC_Public(BaseDetector):
         # gt_labels_dict = {'detect':detect_gt_labels, 'faceDetect':faceDetect_gt_labels, 'faceGender':faceGender_gt_labels, 'faceKp':facekp_gt_keypoints, 'carplateDetect':carplateDetect_gt_labels}
 
         #检测类任务：社区目标、人脸、车牌
-        if targetName in ['detect', 'faceDetect', 'carplateDetect', 'carDetect', 'carplateDetect', 'train2017']:
+        if targetName in ['detect', 'faceDetect', 'carplateDetect', 'carDetect', 'carplateDetect', 'cocoDetect']:
             # RPN forward and loss
             proposal_cfg = self.train_cfg.get('rpn_proposal',
                                               self.test_cfg.rpn)
@@ -271,12 +290,6 @@ class TwoStageDetector_SPJC_Public(BaseDetector):
                 gt_bboxes_ignore=gt_bboxes_ignore,
                 proposal_cfg=proposal_cfg)
             for name, value in rpn_losses.items():
-                if 'loss' in name:
-                    if isinstance(value, list):
-                        for i in range(len(value)):
-                            value[i] = value[i] * fedbl
-                    else:
-                        value = value * fedbl
                 losses['{}_{}'.format(targetName, name)] = (
                     value)
             # ROI forward and loss
@@ -285,8 +298,6 @@ class TwoStageDetector_SPJC_Public(BaseDetector):
                                                                    gt_bboxes_ignore, gt_masks,
                                                                    **kwargs)
             for name, value in roi_losses.items():
-                if 'loss' in name:
-                    value = value * fedbl
                 losses['{}_{}'.format(targetName, name)] = (
                     value)
 
@@ -295,9 +306,6 @@ class TwoStageDetector_SPJC_Public(BaseDetector):
             facekp_roi_losses = self.roi_head_faceKp.kp_forward_train(x, img_metas, gt_keypoints,
                                                            gt_bboxes)
             for name, value in facekp_roi_losses.items():
-                if 'loss' in name:
-                    value = value * fedbl
-                    # value *= 0.1
                 losses['{}_{}'.format(targetName, name)] = (
                     value)
 
@@ -316,10 +324,24 @@ class TwoStageDetector_SPJC_Public(BaseDetector):
                                                                        gt_bboxes, gt_labels,
                                                                        gt_bboxes_ignore)
             for name, value in gender_roi_losses.items():
-                if 'loss' in name:
-                    value = value * fedbl
                 losses['{}_{}'.format(targetName, name)] = (
                     value)
+        if lastloss > 0:
+            curloss = 0
+            for name, value in losses.items():
+                if isinstance(value, list):
+                    for i in range(len(value)):
+                        curloss = curloss + value[i].data.cpu().numpy()
+                else:
+                    curloss = curloss + value.data.cpu().numpy()
+            w = min(math.exp(1/curloss/20), 15) / min(math.exp(1/lastloss/20), 15) * fedbl
+            print(w)
+            for name, value in losses.items():
+                if isinstance(value, list):
+                    for i in range(len(value)):
+                        value[i] *= w
+                else:
+                    value *= w
         return losses
 
     async def async_simple_test(self,
