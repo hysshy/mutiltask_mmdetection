@@ -55,6 +55,9 @@ class TwoStageDetector_SPJC_Public(BaseDetector):
                 elif rpn_head_type == 'carplateDetect':
                     self.rpn_head_carplateDetect = build_head(rpn_head[i])
                     self.rpn_head_Dict.setdefault(rpn_head_type, self.rpn_head_carplateDetect)
+                elif rpn_head_type == 'carDetect':
+                    self.rpn_head_carDetect = build_head(rpn_head[i])
+                    self.rpn_head_Dict.setdefault(rpn_head_type, self.rpn_head_carDetect)
 
         if roi_head is not None:
             # update train and test cfg here for now
@@ -142,12 +145,12 @@ class TwoStageDetector_SPJC_Public(BaseDetector):
             x = self.backbone(img)
             x1 = self.backbone_neck(x)
             x2 = self.neckDict[targetName](x)
-            x = self.attention_backbone(x2, x1)
+            x = self.attention_backbone(x1, x2)
         elif self.attentionType == 'GA2':
             x = self.backbone(img)
             x1 = self.backbone_neck(x)
             x2 = self.neckDict[targetName](x)
-            x = self.attentionDict[targetName](x2, x1)
+            x = self.attentionDict[targetName](x1, x2)
         elif self.attentionType == 'None':
             x = self.backbone(img)
             x = self.backbone_neck(x)
@@ -256,7 +259,7 @@ class TwoStageDetector_SPJC_Public(BaseDetector):
         # gt_labels_dict = {'detect':detect_gt_labels, 'faceDetect':faceDetect_gt_labels, 'faceGender':faceGender_gt_labels, 'faceKp':facekp_gt_keypoints, 'carplateDetect':carplateDetect_gt_labels}
 
         #检测类任务：社区目标、人脸、车牌
-        if targetName in ['detect', 'faceDetect', 'carplateDetect', 'carDetect', 'carplateDetect']:
+        if targetName in ['detect', 'faceDetect', 'carplateDetect', 'carDetect', 'carplateDetect', 'train2017']:
             # RPN forward and loss
             proposal_cfg = self.train_cfg.get('rpn_proposal',
                                               self.test_cfg.rpn)
