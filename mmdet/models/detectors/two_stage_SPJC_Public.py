@@ -143,6 +143,8 @@ class TwoStageDetector_SPJC_Public(BaseDetector):
 
         self.train_cfg = train_cfg
         self.test_cfg = test_cfg
+        self.fedbl = 1
+        self.lastloss = 0
 
     @property
     def with_rpn(self):
@@ -256,12 +258,8 @@ class TwoStageDetector_SPJC_Public(BaseDetector):
                 lastlosslines = lines[-2].strip('\n').split(':')
                 assert 'bl_w' == fedbls[0]
                 assert 'loss' == lastlosslines[0]
-                lastfedbl = fedbl
-                fedbl = float(fedbls[1])
-                lastloss = float(lastlosslines[1])/lastfedbl
-        else:
-            fedbl = 1
-            lastloss = 0
+                self.lastloss = float(lastlosslines[1])/self.fedbl
+                self.fedbl= float(fedbls[1])
 
         targetName = img_metas[0]["filename"].split("/")[-2].split('Imgs')[0]
         x = self.extract_feat(img, targetName, None)
@@ -326,7 +324,7 @@ class TwoStageDetector_SPJC_Public(BaseDetector):
             for name, value in gender_roi_losses.items():
                 losses['{}_{}'.format(targetName, name)] = (
                     value)
-        if lastloss > 0:
+        if self.lastloss > 0:
             curloss = 0
             for name, value in losses.items():
                 if isinstance(value, list):
@@ -334,7 +332,7 @@ class TwoStageDetector_SPJC_Public(BaseDetector):
                         curloss = curloss + value[i].data.cpu().numpy()
                 else:
                     curloss = curloss + value.data.cpu().numpy()
-            w = min(math.exp(1/curloss/20), 15) / min(math.exp(1/lastloss/20), 15) * fedbl
+            w = min(math.exp(1/curloss/20), 15) / min(math.exp(1/self.lastloss/20), 15) * self.fedbl
             print(w)
             for name, value in losses.items():
                 if isinstance(value, list):
