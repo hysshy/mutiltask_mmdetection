@@ -145,6 +145,7 @@ class TwoStageDetector_SPJC_Public(BaseDetector):
         self.test_cfg = test_cfg
         self.fedbl = 1
         self.lastloss = 0
+        self.lastfedbl = 1
 
     @property
     def with_rpn(self):
@@ -258,8 +259,11 @@ class TwoStageDetector_SPJC_Public(BaseDetector):
                 lastlosslines = lines[-2].strip('\n').split(':')
                 assert 'bl_w' == fedbls[0]
                 assert 'loss' == lastlosslines[0]
-                self.lastloss = float(lastlosslines[1])/self.fedbl
-                self.fedbl= float(fedbls[1])
+                if self.fedbl != float(fedbls[1]):
+                    self.lastfedbl = self.fedbl
+                    self.fedbl= float(fedbls[1])
+                    self.lastloss = float(lastlosslines[1])/self.lastfedbl
+
 
         targetName = img_metas[0]["filename"].split("/")[-2].split('Imgs')[0]
         x = self.extract_feat(img, targetName, None)
@@ -327,19 +331,28 @@ class TwoStageDetector_SPJC_Public(BaseDetector):
         if self.lastloss > 0:
             curloss = 0
             for name, value in losses.items():
-                if isinstance(value, list):
-                    for i in range(len(value)):
-                        curloss = curloss + value[i].data.cpu().numpy()
-                else:
-                    curloss = curloss + value.data.cpu().numpy()
-            w = min(math.exp(1/curloss/20), 15) / min(math.exp(1/self.lastloss/20), 15) * self.fedbl
-            print(w)
+                if 'loss' in name:
+                    if isinstance(value, list):
+                        for i in range(len(value)):
+                            curloss = curloss + value[i].data.cpu().numpy()
+                    else:
+                        curloss = curloss + value.data.cpu().numpy()
+            curloss = max(0.00001, curloss)
+            self.preloss = (curloss/self.lastloss)**0.1 * self.lastloss
+            w = self.preloss / curloss * self.fedbl
+            # w = min(math.exp(min((1/curloss/20), 10)), 15) / min(math.exp(min((1/self.lastloss/20), 10)), 15) * self.fedbl
+            curloss2 = 0
             for name, value in losses.items():
-                if isinstance(value, list):
-                    for i in range(len(value)):
-                        value[i] *= w
-                else:
-                    value *= w
+                if 'loss' in name:
+                    if isinstance(value, list):
+                        for i in range(len(value)):
+                            losses[name][i] *= w
+                            curloss2 += losses[name][i]
+                    else:
+                        losses[name] *= w
+                        curloss2 += losses[name]
+            # print(targetName+' : '+str(w)+' : '+str(curloss)+' : '+str(self.lastloss)+' : '+str(curloss2) + ':' + str(self.preloss))
+            # self.lastloss = self.preloss
         return losses
 
     async def async_simple_test(self,
