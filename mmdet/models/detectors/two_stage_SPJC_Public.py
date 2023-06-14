@@ -61,6 +61,9 @@ class TwoStageDetector_SPJC_Public(BaseDetector):
                 elif rpn_head_type == 'cocoDetect':
                     self.rpn_head_cocoDetect = build_head(rpn_head[i])
                     self.rpn_head_Dict.setdefault(rpn_head_type, self.rpn_head_cocoDetect)
+                elif rpn_head_type == 'cocoMask':
+                    self.rpn_head_cocoMask = build_head(rpn_head[i])
+                    self.rpn_head_Dict.setdefault(rpn_head_type, self.rpn_head_cocoMask)
 
         if roi_head is not None:
             # update train and test cfg here for now
@@ -139,6 +142,18 @@ class TwoStageDetector_SPJC_Public(BaseDetector):
                         self.attention_cocoDetect = GeneralizedAttention(in_channels=256, num_heads=8, attention_type='0010',
                                                               convtype=self.convtype)
                         self.attentionDict.setdefault(roi_head_type, self.attention_cocoDetect)
+
+                elif roi_head_type == 'cocoMask':
+                    self.roi_head_cocoMask = build_head(roi_head[i])
+                    self.roi_head_Dict.setdefault(roi_head_type, self.roi_head_cocoMask)
+                    if 'task_neck' in self.neck_names:
+                        self.neck_cocoMask = build_neck(neck)
+                        self.neckDict.setdefault(roi_head_type, self.neck_cocoMask)
+                    if self.attentionType == 'GA2':
+                        self.attention_cocoMask = GeneralizedAttention(in_channels=256, num_heads=8, attention_type='0010',
+                                                              convtype=self.convtype)
+                        self.attentionDict.setdefault(roi_head_type, self.attention_cocoMask)
+
 
 
         self.train_cfg = train_cfg
@@ -259,10 +274,10 @@ class TwoStageDetector_SPJC_Public(BaseDetector):
                 lastlosslines = lines[-2].strip('\n').split(':')
                 assert 'bl_w' == fedbls[0]
                 assert 'loss' == lastlosslines[0]
+                self.lastloss = float(lastlosslines[1]) / self.lastfedbl
                 if self.fedbl != float(fedbls[1]):
                     self.lastfedbl = self.fedbl
                     self.fedbl= float(fedbls[1])
-                    self.lastloss = float(lastlosslines[1])/self.lastfedbl
 
 
         targetName = img_metas[0]["filename"].split("/")[-2].split('Imgs')[0]
@@ -280,7 +295,9 @@ class TwoStageDetector_SPJC_Public(BaseDetector):
         # gt_labels_dict = {'detect':detect_gt_labels, 'faceDetect':faceDetect_gt_labels, 'faceGender':faceGender_gt_labels, 'faceKp':facekp_gt_keypoints, 'carplateDetect':carplateDetect_gt_labels}
 
         #检测类任务：社区目标、人脸、车牌
-        if targetName in ['detect', 'faceDetect', 'carplateDetect', 'carDetect', 'carplateDetect', 'cocoDetect']:
+        if targetName == 'cocoDetect' and gt_masks is not None:
+            targetName = 'cocoMask'
+        if targetName in ['detect', 'faceDetect', 'carplateDetect', 'carDetect', 'carplateDetect', 'cocoDetect', 'cocoMask']:
             # RPN forward and loss
             proposal_cfg = self.train_cfg.get('rpn_proposal',
                                               self.test_cfg.rpn)
@@ -338,7 +355,7 @@ class TwoStageDetector_SPJC_Public(BaseDetector):
                     else:
                         curloss = curloss + value.data.cpu().numpy()
             curloss = max(0.00001, curloss)
-            self.preloss = (curloss/self.lastloss)**0.1 * self.lastloss
+            self.preloss = (curloss/self.lastloss)**0.3 * self.lastloss
             w = self.preloss / curloss * self.fedbl
             # w = min(math.exp(min((1/curloss/20), 10)), 15) / min(math.exp(min((1/self.lastloss/20), 10)), 15) * self.fedbl
             curloss2 = 0
