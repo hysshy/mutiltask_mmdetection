@@ -1,5 +1,7 @@
 import os.path
 import math
+import time
+
 import torch
 from ..builder import DETECTORS, build_backbone, build_head, build_neck
 from .base import BaseDetector
@@ -408,17 +410,23 @@ class TwoStageDetector_SPJC_Public(BaseDetector):
         return iouLine
 
 
-    def simple_test(self, img, img_metas, proposals=None, rescale=False, points=None, pre_bboxes=None, adaptive_w_dict=None):
+    def simple_test(self, img, img_metas, proposals=None, rescale=False, points=None, pre_bboxes=None, maskpre_bboxes=None, adaptive_w_dict=None):
         """Test without augmentation."""
-        targetName = img_metas[0]["filename"].split("/")[-2].split('Imgs')[0]
+        start = time.time()
+        # targetName = img_metas[0]["filename"].split("/")[-2].split('Imgs')[0]
+        targetName = 'cocoMask'
         x = self.extract_feat(img, targetName, adaptive_w_dict)
+        print('ddd', time.time() - start)
         # 根据pre_bboxes进行检测
-        if pre_bboxes is not None:
-            pre_bboxes = torch.from_numpy(np.array(pre_bboxes))
-            pre_bboxes = pre_bboxes.to(img.device)
-            proposal_list = pre_bboxes.type(torch.float)
-        elif pre_bboxes is None:
-            proposal_list = self.rpn_head_Dict[targetName].simple_test_rpn(x, img_metas)
+        if maskpre_bboxes is not None:
+            proposal_list = None
+        else:
+            if pre_bboxes is not None:
+                pre_bboxes = torch.from_numpy(np.array(pre_bboxes))
+                pre_bboxes = pre_bboxes.to(img.device)
+                proposal_list = pre_bboxes.type(torch.float)
+            elif pre_bboxes is None:
+                proposal_list = self.rpn_head_Dict[targetName].simple_test_rpn(x, img_metas)
 
         if targetName == 'faceKp':
             face_kps = self.roi_head_faceKp.simple_hy_kp_test(
@@ -429,10 +437,11 @@ class TwoStageDetector_SPJC_Public(BaseDetector):
             # 人脸姿态分类
             faceGender_labels = self.roi_head_faceGender.simple_cls_test(x, proposal_list, img_metas)
             faceGender_labels = faceGender_labels.cpu().numpy()
+            print('pos', time.time() - start)
             return faceGender_labels
         else:
             return self.roi_head_Dict[targetName].simple_test(
-                x, proposal_list, img_metas, rescale=rescale)
+                x, proposal_list, img_metas, rescale=rescale, maskpre_bboxes=maskpre_bboxes)
             face_kps = []
             det_bboxes, det_labels = self.roi_head_Dict[targetName].simple_test(
                 x, proposal_list, img_metas, rescale=rescale, ifdet=True)

@@ -1,6 +1,6 @@
 # Copyright (c) OpenMMLab. All rights reserved.
 import torch
-
+import numpy as np
 from mmdet.core import bbox2result, bbox2roi, build_assigner, build_sampler
 from ..builder import HEADS, build_head, build_roi_extractor
 from .base_roi_head import BaseRoIHead
@@ -387,7 +387,8 @@ class StandardRoIHead(BaseRoIHead, BBoxTestMixin, MaskTestMixin):
                     img_metas,
                     proposals=None,
                     rescale=False,
-                    ifdet = False):
+                    ifdet = False,
+                    maskpre_bboxes=None):
         """Test without augmentation.
 
         Args:
@@ -411,11 +412,21 @@ class StandardRoIHead(BaseRoIHead, BBoxTestMixin, MaskTestMixin):
             of tuple is bbox results, second element is mask results.
         """
         assert self.with_bbox, 'Bbox head must be implemented.'
-
-        det_bboxes, det_labels = self.simple_test_bboxes(
-            x, img_metas, proposal_list, self.test_cfg, rescale=rescale)
-        if ifdet:
-            return det_bboxes[0], det_labels[0]
+        if maskpre_bboxes is not None:
+            if len(maskpre_bboxes) == 0:
+                gt_bboxes = np.array([])
+                gt_labels = np.array([])
+            else:
+                maskpre_bboxes = np.array(maskpre_bboxes)
+                gt_bboxes = maskpre_bboxes[:, :5]
+                gt_labels = maskpre_bboxes[:, 5]
+            det_bboxes = [torch.from_numpy(gt_bboxes).to(x[0].device).type(torch.float)]
+            det_labels = [torch.from_numpy(gt_labels).to(x[0].device).type(torch.long)]
+        else:
+            det_bboxes, det_labels = self.simple_test_bboxes(
+                x, img_metas, proposal_list, self.test_cfg, rescale=rescale)
+            if ifdet:
+                return det_bboxes[0], det_labels[0]
         bbox_results = [
             bbox2result(det_bboxes[i], det_labels[i],
                         self.bbox_head.num_classes)

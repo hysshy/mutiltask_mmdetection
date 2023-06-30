@@ -13,6 +13,19 @@ from mmcv.runner import get_dist_info
 
 from mmdet.core import encode_mask_results
 
+def get_prebbox(data, dataset):
+    filename = data['img_metas'][0].data[0][0]['ori_filename'].strip('.jpg')
+    id = int(filename)
+    an_ids = dataset.coco.get_ann_ids(img_ids=id)
+    anlist = dataset.coco.load_anns(an_ids)
+    pre_bbox = []
+    catskeys = list(dataset.coco.cats.keys())
+    for an in anlist:
+        bbox = an['bbox']
+        label = catskeys.index(an['category_id'])
+        pre_bbox.append([bbox[0], bbox[1], bbox[0] + bbox[2], bbox[1] + bbox[3], 1, label])
+
+    return pre_bbox
 
 def single_gpu_test(model,
                     data_loader,
@@ -26,12 +39,13 @@ def single_gpu_test(model,
     PALETTE = getattr(dataset, 'PALETTE', None)
     prog_bar = mmcv.ProgressBar(len(dataset))
     for i, data in enumerate(data_loader):
+        # pre_bbox = get_prebbox(data, dataset)
+        # data.setdefault('maskpre_bboxes', pre_bbox)
         with torch.no_grad():
             if adaptive_w_dict is not None:
                 # data中加入adaptive_w_dict
                 data.setdefault("adaptive_w_dict", adaptive_w_dict)
             result = model(return_loss=False, rescale=True, **data)
-
         batch_size = len(result)
         if show or out_dir:
             if batch_size == 1 and isinstance(data['img'][0], torch.Tensor):
