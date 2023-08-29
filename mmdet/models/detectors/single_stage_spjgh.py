@@ -88,14 +88,14 @@ class SingleStageDetector_SPJGH(BaseDetector):
             losses = self.bbox_head.forward_train(x, img_metas, gt_bboxes,
                                                   gt_labels, gt_bboxes_ignore)
         # 人脸关键点检测
-        if img_metas[0]['filename'].split("/")[-2] == 'faceKpimages':
+        if img_metas[0]['filename'].split("/")[-2] == 'faceKpImgs':
             assert len(gt_bboxes) == len(gt_keypoints)
             losses = self.bbox_head.kp_forward_train(x, img_metas, gt_bboxes, gt_labels, gt_keypoints, gt_bboxes_ignore)
 
         # 人脸姿态分类
         if img_metas[0]['filename'].split("/")[-2] == 'faceZitaiImgs':
-            for i in range(len(gt_labels)):
-                gt_labels[i] = gt_labels[i] - 9
+            # for i in range(len(gt_labels)):
+            #     gt_labels[i] = gt_labels[i] - 9
             losses = self.bbox_head.facezitai_forward_train(x, img_metas, gt_bboxes,
                                                   gt_labels, gt_bboxes_ignore)
 

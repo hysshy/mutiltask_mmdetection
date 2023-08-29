@@ -23,7 +23,7 @@ data = dict(
         type='MultiImageMixDataset',
         dataset=dict(
             type='CocoDataset',
-            ann_file='/home/chase/shy/dataset/hyfactor/hyfactor0220_train_2080ti.json',
+            ann_file='/home/chase/shy/dataset/spjgh/train0829.json',
             img_prefix='',
             pipeline=[
                 dict(type='LoadImageFromFile'),
@@ -59,7 +59,7 @@ data = dict(
     ),
     val=dict(
         type='CocoDataset',
-        ann_file='/home/chase/shy/dataset/hyfactor/hyfactor0220_train_2080ti.json',
+        ann_file='/home/chase/shy/dataset/spjgh/train0829.json',
         img_prefix='',
         pipeline=[
             dict(type='LoadImageFromFile'),
@@ -80,7 +80,7 @@ data = dict(
         ]),
     test=dict(
         type='CocoDataset',
-        ann_file='/home/chase/shy/dataset/hyfactor/hyfactor0220_train_2080ti.json',
+        ann_file='/home/chase/shy/dataset/spjgh/train0829.json',
         img_prefix='',
         pipeline=[
             dict(type='LoadImageFromFile'),
@@ -120,7 +120,7 @@ lr_config = dict(
     num_last_epochs=num_last_epochs,
     min_lr_ratio=0.05)
 runner = dict(type='EpochBasedRunner', max_epochs=max_epochs)
-checkpoint_config = dict(interval=10)
+checkpoint_config = dict(interval=30)
 log_config = dict(interval=50, hooks=[dict(type='TextLoggerHook')])
 custom_hooks = [
     dict(type='YOLOXModeSwitchHook', num_last_epochs=num_last_epochs, priority=48),

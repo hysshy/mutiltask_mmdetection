@@ -395,7 +395,7 @@ class MultiImageMixDataset:
             self.flag = dataset.flag
         self.num_samples = len(dataset)
         self.max_refetch = max_refetch
-        self.skip_transform_keys = {'faceKpimages':['Mosaic', 'RandomAffine', 'MixUp', 'RandomFlip'],
+        self.skip_transform_keys = {'faceKpImgs':['Mosaic', 'RandomAffine', 'MixUp', 'RandomFlip'],
                                     'faceZitaiImgs':['MixUp', 'RandomAffine','RandomFlip', 'FilterAnnotations'],
                                     'faceMohuImgs':['Mosaic', 'MixUp', 'RandomAffine', 'YOLOXHSVRandomAug', 'FilterAnnotations']}
 
