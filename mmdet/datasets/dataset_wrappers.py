@@ -409,7 +409,7 @@ class MultiImageMixDataset:
             if self._skip_type_keys is not None and \
                     transform_type in self._skip_type_keys:
                 continue
-            if results['img_info']['file_name'].split('/')[-2] in self.skip_transform_keys.keys() :
+            if self.dataset.hydata and results['img_info']['file_name'].split('/')[-2] in self.skip_transform_keys.keys() :
                 results['flip'] = False
                 results['flip_direction'] = None
                 if transform_type in self.skip_transform_keys[results['img_info']['file_name'].split('/')[-2]]:
@@ -419,7 +419,10 @@ class MultiImageMixDataset:
                 for i in range(self.max_refetch):
                     # Make sure the results passed the loading pipeline
                     # of the original dataset is not None.
-                    indexes = transform.get_indexes(self.dataset, idx=idx)
+                    if self.dataset.hydata:
+                        indexes = transform.get_indexes(self.dataset, idx=idx)
+                    else:
+                        indexes = transform.get_indexes(self.dataset)
                     if not isinstance(indexes, collections.abc.Sequence):
                         indexes = [indexes]
                     mix_results = [

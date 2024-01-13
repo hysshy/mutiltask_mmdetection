@@ -20,10 +20,10 @@ class GroupSampler(Sampler):
         for i, size in enumerate(self.group_sizes):
             self.num_samples += int(np.ceil(
                 size / self.samples_per_gpu)) * self.samples_per_gpu
-        self.hydata_DistributedGroupSampler = Hydata_DistributedGroupSampler(dataset, samples_per_gpu, 1, None)
+        # self.hydata_DistributedGroupSampler = Hydata_DistributedGroupSampler(dataset, samples_per_gpu, 1, None)
 
     def __iter__(self):
-        return self.hydata_DistributedGroupSampler.__iter__()
+        # return self.hydata_DistributedGroupSampler.__iter__()
         indices = []
         for i, size in enumerate(self.group_sizes):
             if size == 0:
