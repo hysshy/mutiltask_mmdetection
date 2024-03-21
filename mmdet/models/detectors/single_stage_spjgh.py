@@ -110,11 +110,20 @@ class SingleStageDetector_SPJGH(BaseDetector):
                 gt_mohus.append(gt_mohu)
             losses = self.bbox_head.facemohu_forward_train(x, img_metas, gt_bboxes, gt_labels, gt_mohus, gt_bboxes_ignore)
 
-        # 人体部位检测
-        if img_metas[0]['filename'].split("/")[-2] == 'bodyDetect':
-            for i in range(len(gt_labels)):
-                gt_labels[i] = gt_labels[i] - 20
-            losses = self.bbox_head.facezitai_forward_train(x, img_metas, gt_bboxes, gt_labels, gt_bboxes_ignore)
+        # 人体部位、属性检测
+        if img_metas[0]['filename'].split("/")[-2] == 'bodyDetectImgs':
+            losses = self.bbox_head.bodydetect_forward_train(x, img_metas, gt_bboxes,
+                                                  gt_labels, gt_bboxes_ignore)
+
+        # 衣服风格分类
+        if img_metas[0]['filename'].split("/")[-2] == 'clouseStyleImgs':
+            losses = self.bbox_head.clouseStyle_forward_train(x, img_metas, gt_bboxes,
+                                                  gt_labels, gt_bboxes_ignore)
+
+        # 衣服颜色分类
+        if img_metas[0]['filename'].split("/")[-2] == 'clouseColorImgs':
+            losses = self.bbox_head.clouseColor_forward_train(x, img_metas, gt_bboxes,
+                                                  gt_labels, gt_bboxes_ignore)
         return losses
 
     def simple_test(self, img, img_metas, rescale=False, points=None):
@@ -131,15 +140,15 @@ class SingleStageDetector_SPJGH(BaseDetector):
                 The outer list corresponds to each image. The inner list
                 corresponds to each class.
         """
-        det_bboxes, det_labels, face_bboxes, face_kps, face_zitais, face_mohus = [],[],[],[],[],[]
+        det_bboxes, det_labels, face_bboxes, face_kps, face_zitais, face_mohus, body_bboxes, body_labels, upclouse_styles, clouse_colors = [],[],[],[],[],[],[],[],[],[]
         feat = self.extract_feat(img)
         results_list = self.bbox_head.simple_test(
-            feat, img_metas, rescale=rescale, getKeep=False)
-        bbox_results = [
-            bbox2result(det_bboxes, det_labels, self.bbox_head.num_classes)
-            for det_bboxes, det_labels in results_list
-        ]
-        return bbox_results
+            feat, img_metas, rescale=rescale, getKeep=True)
+        # bbox_results = [
+        #     bbox2result(det_bboxes, det_labels, self.bbox_head.num_classes)
+        #     for det_bboxes, det_labels in results_list
+        # ]
+        # return bbox_results
         det_bboxes, det_labels, valid_mask, keep = results_list[0]
         face_bboxes, face_labels, face_index = labelstransform.simple_test_findTarget(det_bboxes, det_labels, points, 0, 1)
         #人脸属性识别
@@ -156,8 +165,30 @@ class SingleStageDetector_SPJGH(BaseDetector):
         if len(det_bboxes) > 0:
             det_bboxes = det_bboxes.cpu().numpy()
             det_labels = det_labels.cpu().numpy()
-        # return results_list[0]
-        return det_bboxes, det_labels, face_bboxes, face_kps, face_zitais, face_mohus
+
+        # 人体部位、属性识别
+        results_list_body = self.bbox_head.simple_test_bodybboxes(
+            feat, img_metas, rescale=rescale, getKeep=True)
+        body_bboxes, body_labels, valid_mask, keep = results_list_body[0]
+        # 衣服风格识别
+        upclouse_bboxes, upclouse_labels, upclouse_index = labelstransform.simple_test_findTarget(body_bboxes, body_labels, points, 0, 1)
+        if len(upclouse_labels) > 0:
+            upclouse_bboxes = upclouse_bboxes.cpu().numpy()
+            upclouse_labels = upclouse_labels.cpu().numpy()
+            upclouse_styles = self.bbox_head.simple_test_clouseStyle(feat, valid_mask, keep, upclouse_index, img_metas)[0].cpu().numpy()
+        # 衣服颜色识别
+        clouse_bboxes, clouse_labels, clouse_index = labelstransform.simple_test_findTarget(body_bboxes,
+                                                                                                  body_labels,
+                                                                                                  points, 0, 4)
+        if len(clouse_labels) > 0:
+            clouse_bboxes = clouse_bboxes.cpu().numpy()
+            clouse_labels = clouse_labels.cpu().numpy()
+            clouse_colors = self.bbox_head.simple_test_clouseColor(feat, valid_mask, keep, clouse_index, img_metas)[0].cpu().numpy()
+        if len(body_bboxes) > 0:
+            body_bboxes =body_bboxes.cpu().numpy()
+            body_labels = body_labels.cpu().numpy()
+
+        return det_bboxes, det_labels, face_bboxes, face_kps, face_zitais, face_mohus, body_bboxes, body_labels, upclouse_bboxes, upclouse_styles, clouse_bboxes, clouse_colors
 
     def aug_test(self, imgs, img_metas, rescale=False):
         """Test function with test time augmentation.

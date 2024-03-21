@@ -343,6 +343,20 @@ class BaseDenseHead(BaseModule, metaclass=ABCMeta):
                 *outs, img_metas=img_metas, cfg=proposal_cfg)
             return losses, proposal_list
 
+    def bodydetect_forward_train(self,
+                      x,
+                      img_metas,
+                      gt_bboxes,
+                      gt_labels,
+                      gt_bboxes_ignore=None):
+        outs = self.forward_bodydetect(x)
+        if gt_labels is None:
+            loss_inputs = outs + (gt_bboxes, img_metas)
+        else:
+            loss_inputs = outs + (gt_bboxes, gt_labels, img_metas)
+        losses = self.loss(*loss_inputs, gt_bboxes_ignore=gt_bboxes_ignore, lossname='bodydetect')
+        return losses
+
     def facezitai_forward_train(self,
                       x,
                       img_metas,
@@ -355,21 +369,37 @@ class BaseDenseHead(BaseModule, metaclass=ABCMeta):
             loss_inputs = outs + (gt_bboxes, img_metas)
         else:
             loss_inputs = outs + (gt_bboxes, gt_labels, img_metas)
-        losses = self.facezitai_loss(*loss_inputs, gt_bboxes_ignore=gt_bboxes_ignore)
+        losses = self.cls_loss(*loss_inputs, 'faceZitai_loss', gt_bboxes_ignore=gt_bboxes_ignore)
         return losses
 
-    def bodydetect_forward_train(self,
+    def clouseStyle_forward_train(self,
                       x,
                       img_metas,
                       gt_bboxes,
-                      gt_labels,
+                      gt_labels=None,
                       gt_bboxes_ignore=None):
-        outs = self.forward_facezitai(x)
+
+        outs = self.forward_clouseStyle(x)
         if gt_labels is None:
             loss_inputs = outs + (gt_bboxes, img_metas)
         else:
             loss_inputs = outs + (gt_bboxes, gt_labels, img_metas)
-        losses = self.facezitai_loss(*loss_inputs, gt_bboxes_ignore=gt_bboxes_ignore)
+        losses = self.cls_loss(*loss_inputs, 'clouseStyle_loss',  gt_bboxes_ignore=gt_bboxes_ignore)
+        return losses
+
+    def clouseColor_forward_train(self,
+                      x,
+                      img_metas,
+                      gt_bboxes,
+                      gt_labels=None,
+                      gt_bboxes_ignore=None):
+
+        outs = self.forward_clouseColor(x)
+        if gt_labels is None:
+            loss_inputs = outs + (gt_bboxes, img_metas)
+        else:
+            loss_inputs = outs + (gt_bboxes, gt_labels, img_metas)
+        losses = self.cls_loss(*loss_inputs, 'clouseColor_loss',  gt_bboxes_ignore=gt_bboxes_ignore)
         return losses
 
     def facemohu_forward_train(self,

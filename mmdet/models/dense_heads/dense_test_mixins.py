@@ -38,6 +38,13 @@ class BBoxTestMixin(object):
             *outs, img_metas=img_metas, rescale=rescale, getKeep=getKeep)
         return results_list
 
+    #人体部位属性检测
+    def simple_test_bodybboxes(self, feats, img_metas, rescale=False, getKeep=False):
+        outs = self.forward_bodydetect(feats)
+        results_list = self.get_bboxes(
+            *outs, img_metas=img_metas, rescale=rescale, getKeep=getKeep)
+        return results_list
+
     # 人脸关键点检测
     def simple_test_kps(self, feats, face_bboxes, valid_mask, keep, face_index, img_metas, rescale=False):
         kp = torch.full([0, 5, 2], 0).type_as(face_bboxes)
@@ -55,7 +62,19 @@ class BBoxTestMixin(object):
     # 人脸姿态分类
     def simple_test_facezitai(self, feats, valid_mask, keep, face_index, img_metas):
         outs = self.forward_facezitai_intest(feats)[0]
-        results_list = self.get_facezitai(outs, valid_mask, keep,face_index,img_metas=img_metas)
+        results_list = self.get_cls(outs, valid_mask, keep,face_index,img_metas=img_metas)
+        return results_list
+
+    # 人体衣服风格分类
+    def simple_test_clouseStyle(self, feats, valid_mask, keep, face_index, img_metas):
+        outs = self.forward_clouseStyle_intest(feats)[0]
+        results_list = self.get_cls(outs, valid_mask, keep,face_index,img_metas=img_metas)
+        return results_list
+
+    # 人体衣服颜色分类
+    def simple_test_clouseColor(self, feats, valid_mask, keep, face_index, img_metas):
+        outs = self.forward_clouseColor_intest(feats)[0]
+        results_list = self.get_cls(outs, valid_mask, keep,face_index,img_metas=img_metas)
         return results_list
 
     # 人脸模糊评估分类

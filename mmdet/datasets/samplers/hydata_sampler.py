@@ -59,9 +59,9 @@ class Hydata_DistributedGroupSampler(Sampler):
         self.facezitaiProposalIds = []
         self.facemohuProposalIds = []
         self.facekpProposalIds = []
-        self.bodydetectProposalIds = []
-        self.clouse_styleProposalIds = []
-        self.clouse_colorProposalIds = []
+        self.bodyDetectProposalIds = []
+        self.clouseStyleProposalIds = []
+        self.clouseColorProposalIds = []
         self.faceGenderProposalIds =[]
         self.carplateDetectProposalIds = []
         self.faceDetectProposalIds = []
@@ -93,25 +93,28 @@ class Hydata_DistributedGroupSampler(Sampler):
             elif 'faceKpImgs' == filename.split('/')[-2]:
                 self.facekpProposalIds.append(k)
             elif 'bodyDetectImgs' == filename.split('/')[-2]:
-                self.bodydetectProposalIds.append(k)
-            elif 'clouse_styleImgs' == filename.split('/')[-2]:
-                self.clouse_styleProposalIds.append(k)
-            elif 'clouse_colorImgs' == filename.split('/')[-2]:
-                self.clouse_colorProposalIds.append(k)
+                self.bodyDetectProposalIds.append(k)
+            elif 'clouseStyleImgs' == filename.split('/')[-2]:
+                self.clouseStyleProposalIds.append(k)
+            elif 'clouseColorImgs' == filename.split('/')[-2]:
+                self.clouseColorProposalIds.append(k)
             elif 'faceGenderImgs' == filename.split('/')[-2]:
                 self.faceGenderProposalIds.append(k)
             elif 'carplateDetectImgs' == filename.split('/')[-2]:
                 self.carplateDetectProposalIds.append(k)
             elif 'faceDetectImgs' == filename.split('/')[-2]:
                 self.faceDetectProposalIds.append(k)
+            else:
+                print(filename.split('/')[-2])
+                assert False
 
         print(len(self.detectproPosalIds))
         print(len(self.facezitaiProposalIds))
         print(len(self.facemohuProposalIds))
         print(len(self.facekpProposalIds))
-        print(len(self.bodydetectProposalIds))
-        print(len(self.clouse_styleProposalIds))
-        print(len(self.clouse_colorProposalIds))
+        print(len(self.bodyDetectProposalIds))
+        print(len(self.clouseStyleProposalIds))
+        print(len(self.clouseColorProposalIds))
         print(len(self.faceGenderProposalIds))
         print(len(self.carplateDetectProposalIds))
         print(len(self.faceDetectProposalIds))
@@ -169,15 +172,15 @@ class Hydata_DistributedGroupSampler(Sampler):
 
         bodydetect_g = torch.Generator()
         bodydetect_g.manual_seed(self.epoch)
-        bodydetectindices = self.getIndices(self.bodydetectProposalIds, bodydetect_g)
+        bodydetect_indices = self.getIndices(self.bodyDetectProposalIds, bodydetect_g)
 
-        clouse_style_g = torch.Generator()
-        clouse_style_g.manual_seed(self.epoch)
-        clouse_styleindices = self.getIndices(self.clouse_styleProposalIds, clouse_style_g)
+        clousestyle_g = torch.Generator()
+        clousestyle_g.manual_seed(self.epoch)
+        clousestyle_indices = self.getIndices(self.clouseStyleProposalIds, clousestyle_g)
 
-        clouse_color_g = torch.Generator()
-        clouse_color_g.manual_seed(self.epoch)
-        clouse_colorindices = self.getIndices(self.clouse_colorProposalIds, clouse_color_g)
+        clousecolor_g = torch.Generator()
+        clousecolor_g.manual_seed(self.epoch)
+        clousecolor_indices = self.getIndices(self.clouseColorProposalIds, clousecolor_g)
 
         faceGender_g = torch.Generator()
         faceGender_g.manual_seed(self.epoch)
@@ -196,14 +199,14 @@ class Hydata_DistributedGroupSampler(Sampler):
         assert len(facezitaiindices) % self.num_replicas == 0
         assert len(facemohuindices) % self.num_replicas == 0
         assert len(faceKpindices) % self.num_replicas == 0
-        assert len(bodydetectindices) % self.num_replicas == 0
-        assert len(clouse_styleindices)% self.num_replicas == 0
-        assert len(clouse_colorindices)% self.num_replicas == 0
+        assert len(bodydetect_indices) % self.num_replicas == 0
+        assert len(clousestyle_indices)% self.num_replicas == 0
+        assert len(clousecolor_indices)% self.num_replicas == 0
         assert len(faceGender_indices)% self.num_replicas == 0
         assert len(carplateDetect_indices)% self.num_replicas == 0
         assert len(faceDetect_indices)% self.num_replicas == 0
 
-        print(len(detectindices), len(facezitaiindices), len(facemohuindices), len(faceKpindices), len(bodydetectindices), len(clouse_styleindices), len(clouse_colorindices), len(faceGender_indices), len(carplateDetect_indices), len(faceDetect_indices))
+        print(len(detectindices), len(facezitaiindices), len(facemohuindices), len(faceKpindices), len(bodydetect_indices), len(clousestyle_indices), len(clousecolor_indices), len(faceGender_indices), len(carplateDetect_indices), len(faceDetect_indices))
 
         num_per_gpu_detect = len(detectindices)//self.num_replicas
         single_detectindices = detectindices[self.rank*num_per_gpu_detect:(self.rank+1)*num_per_gpu_detect]
@@ -217,14 +220,14 @@ class Hydata_DistributedGroupSampler(Sampler):
         num_per_gpu_facekp = len(faceKpindices)//self.num_replicas
         single_facekpindices = faceKpindices[self.rank*num_per_gpu_facekp:(self.rank+1)*num_per_gpu_facekp]
 
-        num_per_gpu_bodydetect = len(bodydetectindices)//self.num_replicas
-        single_bodydetectindices = bodydetectindices[self.rank*num_per_gpu_bodydetect:(self.rank+1)*num_per_gpu_bodydetect]
+        num_per_gpu_bodydetect = len(bodydetect_indices)//self.num_replicas
+        single_bodydetect_indices = bodydetect_indices[self.rank*num_per_gpu_bodydetect:(self.rank+1)*num_per_gpu_bodydetect]
 
-        num_per_gpu_clouse_style = len(clouse_styleindices)//self.num_replicas
-        single_clouse_styleindices = clouse_styleindices[self.rank*num_per_gpu_clouse_style:(self.rank+1)*num_per_gpu_clouse_style]
+        num_per_gpu_clouse_style = len(clousestyle_indices)//self.num_replicas
+        single_clousestyle_indices = clousestyle_indices[self.rank*num_per_gpu_clouse_style:(self.rank+1)*num_per_gpu_clouse_style]
 
-        num_per_gpu_clouse_color = len(clouse_colorindices)//self.num_replicas
-        single_clouse_colorindices = clouse_colorindices[self.rank*num_per_gpu_clouse_color:(self.rank+1)*num_per_gpu_clouse_color]
+        num_per_gpu_clouse_color = len(clousecolor_indices)//self.num_replicas
+        single_clousecolor_indices = clousecolor_indices[self.rank*num_per_gpu_clouse_color:(self.rank+1)*num_per_gpu_clouse_color]
 
         num_per_gpu_faceGender = len(faceGender_indices)//self.num_replicas
         single_faceGender_indices = faceGender_indices[self.rank*num_per_gpu_faceGender:(self.rank+1)*num_per_gpu_faceGender]
@@ -240,14 +243,14 @@ class Hydata_DistributedGroupSampler(Sampler):
         single_facemohu_len = len(single_facemohuindices)
         single_facezitai_len = len(single_facezitaiindices)
         single_facekp_len = len(single_facekpindices)
-        single_bodydetect_len = len(single_bodydetectindices)
-        single_clouse_style_len = len(single_clouse_styleindices)
-        single_clouse_color_len = len(single_clouse_colorindices)
+        single_bodydetect_len = len(single_bodydetect_indices)
+        single_clousestyle_len = len(single_clousestyle_indices)
+        single_clousecolor_len = len(single_clousecolor_indices)
         single_faceGender_len = len(single_faceGender_indices)
         single_carplateDetect_len = len(single_carplateDetect_indices)
         single_faceDetect_len = len(single_faceDetect_indices)
 
-        single_allNums = single_detect_len  + single_facemohu_len + single_facezitai_len + single_facekp_len + single_bodydetect_len + single_clouse_style_len + single_clouse_color_len + single_faceGender_len + single_carplateDetect_len + single_faceDetect_len
+        single_allNums = single_detect_len  + single_facemohu_len + single_facezitai_len + single_facekp_len + single_bodydetect_len + single_clousestyle_len + single_clousecolor_len + single_faceGender_len + single_carplateDetect_len + single_faceDetect_len
 
         assert single_allNums % self.samples_per_gpu == 0
         assert single_detect_len % self.samples_per_gpu == 0
@@ -255,8 +258,8 @@ class Hydata_DistributedGroupSampler(Sampler):
         assert single_facezitai_len % self.samples_per_gpu == 0
         assert single_facekp_len % self.samples_per_gpu == 0
         assert single_bodydetect_len % self.samples_per_gpu == 0
-        assert single_clouse_style_len % self.samples_per_gpu == 0
-        assert single_clouse_color_len % self.samples_per_gpu == 0
+        assert single_clousestyle_len % self.samples_per_gpu == 0
+        assert single_clousecolor_len % self.samples_per_gpu == 0
         assert single_faceGender_len % self.samples_per_gpu == 0
         assert single_carplateDetect_len % self.samples_per_gpu == 0
         assert single_faceDetect_len % self.samples_per_gpu == 0
@@ -272,8 +275,8 @@ class Hydata_DistributedGroupSampler(Sampler):
         facemohu_indices, end_index = self.getShufful_indices(end_index, single_facemohu_len, shufful_indices)
         facekp_indices, end_index = self.getShufful_indices(end_index, single_facekp_len, shufful_indices)
         bodydetect_indices, end_index = self.getShufful_indices(end_index, single_bodydetect_len, shufful_indices)
-        clouse_style_indices, end_index = self.getShufful_indices(end_index, single_clouse_style_len, shufful_indices)
-        clouse_color_indices, end_index = self.getShufful_indices(end_index, single_clouse_color_len, shufful_indices)
+        clousestyle_indices, end_index = self.getShufful_indices(end_index, single_clousestyle_len, shufful_indices)
+        clousecolor_indices, end_index = self.getShufful_indices(end_index, single_clousecolor_len, shufful_indices)
         faceGender_indices, end_index = self.getShufful_indices(end_index, single_faceGender_len, shufful_indices)
         carplateDetect_indices, end_index = self.getShufful_indices(end_index, single_carplateDetect_len, shufful_indices)
         faceDetect_indices, end_index = self.getShufful_indices(end_index, single_faceDetect_len, shufful_indices)
@@ -286,9 +289,9 @@ class Hydata_DistributedGroupSampler(Sampler):
         self.getRangeIndices(indicesList, facezitai_indices, single_facezitaiindices)
         self.getRangeIndices(indicesList, facekp_indices, single_facekpindices)
         self.getRangeIndices(indicesList, detect_indices, single_detectindices)
-        self.getRangeIndices(indicesList, bodydetect_indices, single_bodydetectindices)
-        self.getRangeIndices(indicesList, clouse_style_indices, single_clouse_styleindices)
-        self.getRangeIndices(indicesList, clouse_color_indices, single_clouse_colorindices)
+        self.getRangeIndices(indicesList, bodydetect_indices, single_bodydetect_indices)
+        self.getRangeIndices(indicesList, clousestyle_indices, single_clousestyle_indices)
+        self.getRangeIndices(indicesList, clousecolor_indices, single_clousecolor_indices)
         self.getRangeIndices(indicesList, faceGender_indices, single_faceGender_indices)
         self.getRangeIndices(indicesList, carplateDetect_indices, single_carplateDetect_indices)
         self.getRangeIndices(indicesList, faceDetect_indices, single_faceDetect_indices)

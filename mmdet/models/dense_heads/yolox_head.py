@@ -53,10 +53,13 @@ class YOLOXHead(BaseDenseHead, BBoxTestMixin):
     def __init__(self,
                  num_classes,
                  in_channels,
+                 body_classes=0,
+                 clouseStyle_classes=0,
+                 clouseColor_classes=0,
                  feat_channels=256,
                  with_faceKp = False,
                  with_facemohu = False,
-                 facezita_num_classes = False,
+                 facezita_num_classes = 0,
                  stacked_convs=2,
                  strides=[8, 16, 32],
                  use_depthwise=False,
@@ -97,6 +100,9 @@ class YOLOXHead(BaseDenseHead, BBoxTestMixin):
         self.cls_out_channels = num_classes
         self.in_channels = in_channels
         self.feat_channels = feat_channels
+        self.body_classes = body_classes
+        self.clouseStyle_classes = clouseStyle_classes
+        self.clouseColor_classes = clouseColor_classes
         self.with_faceKp = with_faceKp
         self.with_facemohu = with_facemohu
         self.facezita_num_classes = facezita_num_classes
@@ -160,6 +166,21 @@ class YOLOXHead(BaseDenseHead, BBoxTestMixin):
             #人脸模糊度评估
             self.multi_level_facemohu_convs = nn.ModuleList()
             self.multi_level_conv_facemohu = nn.ModuleList()
+        if self.body_classes > 0:
+            #人体部位属性检测
+            self.multi_level_bodydetect_cls_convs = nn.ModuleList()
+            self.multi_level_bodydetect_reg_convs = nn.ModuleList()
+            self.multi_level_bodydetect_conv_cls = nn.ModuleList()
+            self.multi_level_bodydetect_conv_reg = nn.ModuleList()
+            self.multi_level_bodydetect_conv_obj = nn.ModuleList()
+        if self.clouseStyle_classes > 0:
+            #衣服风格检测
+            self.multi_level_clouseStyle_convs = nn.ModuleList()
+            self.multi_level_conv_clouseStyle = nn.ModuleList()
+        if self.clouseColor_classes > 0:
+            #衣服颜色检测
+            self.multi_level_clouseColor_convs = nn.ModuleList()
+            self.multi_level_conv_clouseColor = nn.ModuleList()
 
         for _ in self.strides:
             self.multi_level_cls_convs.append(self._build_stacked_convs())
@@ -181,6 +202,23 @@ class YOLOXHead(BaseDenseHead, BBoxTestMixin):
                 self.multi_level_facemohu_convs.append(self._build_stacked_convs())
                 conv_facemohu = nn.Conv2d(self.feat_channels, 1, 1)
                 self.multi_level_conv_facemohu.append(conv_facemohu)
+            if self.body_classes > 0:
+                self.multi_level_bodydetect_cls_convs.append(self._build_stacked_convs())
+                self.multi_level_bodydetect_reg_convs.append(self._build_stacked_convs())
+                conv_cls = nn.Conv2d(self.feat_channels, self.body_classes, 1)
+                conv_reg = nn.Conv2d(self.feat_channels, 4, 1)
+                conv_obj = nn.Conv2d(self.feat_channels, 1, 1)
+                self.multi_level_bodydetect_conv_cls.append(conv_cls)
+                self.multi_level_bodydetect_conv_reg.append(conv_reg)
+                self.multi_level_bodydetect_conv_obj.append(conv_obj)
+            if self.clouseStyle_classes > 0:
+                self.multi_level_clouseStyle_convs.append(self._build_stacked_convs())
+                conv_clouseStyle = nn.Conv2d(self.feat_channels, self.clouseStyle_classes, 1)
+                self.multi_level_conv_clouseStyle.append(conv_clouseStyle)
+            if self.clouseColor_classes > 0:
+                self.multi_level_clouseColor_convs.append(self._build_stacked_convs())
+                conv_clouseColor = nn.Conv2d(self.feat_channels, self.clouseColor_classes, 1)
+                self.multi_level_conv_clouseColor.append(conv_clouseColor)
 
     def _build_stacked_convs(self):
         """Initialize conv layers of a single level head."""
@@ -230,6 +268,17 @@ class YOLOXHead(BaseDenseHead, BBoxTestMixin):
         if self.with_facemohu:
             for conv_facemohu, in zip(self.multi_level_conv_facemohu,):
                 conv_facemohu.bias.data.fill_(bias_init)
+        if self.body_classes > 0:
+            for conv_cls, conv_obj in zip(self.multi_level_bodydetect_conv_cls,
+                                          self.multi_level_bodydetect_conv_obj):
+                conv_cls.bias.data.fill_(bias_init)
+                conv_obj.bias.data.fill_(bias_init)
+        if self.clouseStyle_classes > 0:
+            for conv_clouseStyle, in zip(self.multi_level_conv_clouseStyle,):
+                conv_clouseStyle.bias.data.fill_(bias_init)
+        if self.clouseColor_classes > 0:
+            for conv_clouseColor, in zip(self.multi_level_conv_clouseColor,):
+                conv_clouseColor.bias.data.fill_(bias_init)
 
     def forward_single(self, x, cls_convs, reg_convs, conv_cls, conv_reg, conv_obj):
         """Forward feature of a single scale level."""
@@ -294,6 +343,44 @@ class YOLOXHead(BaseDenseHead, BBoxTestMixin):
                            self.multi_level_conv_facezitai,
                            )
 
+    def forward_clouseStyle_intest(self, feats):
+        return multi_apply(self.forward_addbranch_single, feats,
+                           self.multi_level_clouseStyle_convs,
+                           self.multi_level_conv_clouseStyle,
+                           )
+
+    def forward_clouseColor_intest(self, feats):
+        return multi_apply(self.forward_addbranch_single, feats,
+                           self.multi_level_clouseColor_convs,
+                           self.multi_level_conv_clouseColor,
+                           )
+
+    def forward_bodydetect(self, feats):
+        return multi_apply(self.forward_single, feats,
+                           self.multi_level_bodydetect_cls_convs,
+                           self.multi_level_bodydetect_reg_convs,
+                           self.multi_level_bodydetect_conv_cls,
+                           self.multi_level_bodydetect_conv_reg,
+                           self.multi_level_bodydetect_conv_obj)
+
+    def forward_clouseStyle(self, feats):
+        return multi_apply(self.forward_single, feats,
+                           self.multi_level_clouseStyle_convs,
+                           self.multi_level_bodydetect_reg_convs,
+                           self.multi_level_conv_clouseStyle,
+                           self.multi_level_bodydetect_conv_reg,
+                           self.multi_level_bodydetect_conv_obj
+                           )
+
+    def forward_clouseColor(self, feats):
+        return multi_apply(self.forward_single, feats,
+                           self.multi_level_clouseColor_convs,
+                           self.multi_level_bodydetect_reg_convs,
+                           self.multi_level_conv_clouseColor,
+                           self.multi_level_bodydetect_conv_reg,
+                           self.multi_level_bodydetect_conv_obj
+                           )
+
 
     @force_fp32(apply_to=('cls_scores', 'bbox_preds', 'objectnesses'))
     def get_kps(self, facekp_preds,
@@ -326,7 +413,7 @@ class YOLOXHead(BaseDenseHead, BBoxTestMixin):
         return result_list
 
     @force_fp32(apply_to=('cls_scores'))
-    def get_facezitai(self, facezitai_scores,
+    def get_cls(self, scores,
                       valid_mask,
                       keep,
                       face_index,
@@ -334,16 +421,16 @@ class YOLOXHead(BaseDenseHead, BBoxTestMixin):
                       ):
         num_imgs = len(img_metas)
         # flatten cls_scores, bbox_preds and objectness
-        flatten_facezitai_scores = [
-            facezitai_score.permute(0, 2, 3, 1).reshape(num_imgs, -1, facezitai_score.shape[1])
-            for facezitai_score in facezitai_scores
+        flatten_scores = [
+            score.permute(0, 2, 3, 1).reshape(num_imgs, -1, score.shape[1])
+            for score in scores
         ]
-        flatten_facezitai_scores = torch.cat(flatten_facezitai_scores, dim=1)
+        flatten_scores = torch.cat(flatten_scores, dim=1)
         result_list = []
         for img_id in range(len(img_metas)):
-            facezitai_scores = flatten_facezitai_scores[img_id]
-            facezitai_scores = facezitai_scores[valid_mask][keep][face_index]
-            max_scores, labels = torch.max(facezitai_scores, 1)
+            scores = flatten_scores[img_id]
+            scores = scores[valid_mask][keep][face_index]
+            max_scores, labels = torch.max(scores, 1)
             result_list.append(labels)
         return result_list
 
@@ -419,7 +506,7 @@ class YOLOXHead(BaseDenseHead, BBoxTestMixin):
         # flatten cls_scores, bbox_preds and objectness
         flatten_cls_scores = [
             cls_score.permute(0, 2, 3, 1).reshape(num_imgs, -1,
-                                                  self.cls_out_channels)
+                                                  cls_score.shape[1])
             for cls_score in cls_scores
         ]
         flatten_bbox_preds = [
@@ -505,7 +592,9 @@ class YOLOXHead(BaseDenseHead, BBoxTestMixin):
              gt_bboxes,
              gt_labels,
              img_metas,
-             gt_bboxes_ignore=None):
+             gt_bboxes_ignore=None,
+             lossname=None
+             ):
         """Compute loss of the head.
         Args:
             cls_scores (list[Tensor]): Box scores for each scale level,
@@ -534,8 +623,7 @@ class YOLOXHead(BaseDenseHead, BBoxTestMixin):
             with_stride=True)
 
         flatten_cls_preds = [
-            cls_pred.permute(0, 2, 3, 1).reshape(num_imgs, -1,
-                                                 self.cls_out_channels)
+            cls_pred.permute(0, 2, 3, 1).reshape(num_imgs, -1, cls_pred.shape[1])
             for cls_pred in cls_scores
         ]
         flatten_bbox_preds = [
@@ -582,29 +670,35 @@ class YOLOXHead(BaseDenseHead, BBoxTestMixin):
         loss_obj = self.loss_obj(flatten_objectness.view(-1, 1),
                                  obj_targets) / num_total_samples
         loss_cls = self.loss_cls(
-            flatten_cls_preds.view(-1, self.num_classes)[pos_masks],
+            flatten_cls_preds.view(-1, flatten_cls_preds.shape[-1])[pos_masks],
             cls_targets) / num_total_samples
 
-        loss_dict = dict(
-            loss_cls=loss_cls, loss_bbox=loss_bbox, loss_obj=loss_obj)
+        if lossname is None:
+            loss_dict = dict(
+                loss_cls=loss_cls, loss_bbox=loss_bbox, loss_obj=loss_obj)
+        else:
+            loss_dict = {lossname+'_loss_cls':loss_cls, lossname+'_loss_bbox':loss_bbox, lossname+'_loss_obj':loss_obj}
 
         if self.use_l1:
             loss_l1 = self.loss_l1(
                 flatten_bbox_preds.view(-1, 4)[pos_masks],
                 l1_targets) / num_total_samples
-            loss_dict.update(loss_l1=loss_l1)
-
+            if lossname is None:
+                loss_dict.update(loss_l1=loss_l1)
+            else:
+                loss_dict.update({lossname+'_loss_l1':loss_l1})
         return loss_dict
 
 
     @force_fp32(apply_to=('cls_scores'))
-    def facezitai_loss(self,
+    def cls_loss(self,
              cls_scores,
              bbox_preds,
              objectnesses,
              gt_bboxes,
              gt_labels,
              img_metas,
+             loss_name,
              gt_bboxes_ignore=None):
 
         num_imgs = len(img_metas)
@@ -656,9 +750,7 @@ class YOLOXHead(BaseDenseHead, BBoxTestMixin):
             flatten_cls_preds.view(-1, flatten_cls_preds.shape[-1])[pos_masks],
             cls_targets) / num_total_samples
 
-        loss_dict = dict(
-            facezitai_loss_cls=loss_cls)
-
+        loss_dict = {loss_name:loss_cls}
         return loss_dict
 
     #关键点损失计算

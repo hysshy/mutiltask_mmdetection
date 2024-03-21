@@ -8,9 +8,15 @@ from Log import logger
 from drawUtils import *
 CLASSES = ['face', 'facewithmask', 'person', 'lianglunche', 'sanlunche', 'car', 'truck', 'dog', 'cat']
 zitai_classes = ['微右', '微左', '正脸', '下左', '下右', '微下', '重上', '重下', '重右', '重左', '遮挡或半脸']
+bodydetector_categoriesName = ['short_sleeves', 'long_sleeves', 'skirt', 'long_trousers', 'short_trousers', 'backbag',
+                               'glasses', 'handbag', 'hat', 'haversack', 'trunk']
+clousestyle_categoriesName = ['medium_long_style', 'medium_style', 'long_style']
+clousecolor_categoriesName = ['light_blue', 'light_red', 'khaki', 'gray', 'blue', 'red', 'green', 'brown', 'yellow',
+                              'purple', 'white', 'orange', 'deep_blue', 'deep_green', 'deep_red', 'black', 'stripe',
+                              'lattice', 'mess', 'decor', 'blue_green']
 
-config_file = '/home/chase/shy/mmdetection/yolox_m_8x8_300e_coco_spjgh.py'
-checkpoint_file = '/home/chase/shy/mmdetection/work_dirs/yolox_m_8x8_300e_coco2_kp/epoch_300.pth'
+config_file = '/home/chase/shy/dataset/spjgh/models/yolox_m_8x8_300e_coco_spjgh.py'
+checkpoint_file = '/home/chase/shy/dataset/spjgh/models/epoch_150.pth'
 # build the model from a config file and a checkpoint file
 model = init_detector(config_file, checkpoint_file, device='cuda:1')
 
@@ -28,16 +34,21 @@ if __name__ == '__main__':
     #     timeList.append(time.time() - start)
     # print(min(timeList), max(timeList), np.mean(timeList))
 
-    imgPath = '/home/chase/Desktop/138/images'
-    drawPath = '/home/chase/shy/dataset/xinao/draw5'
+    imgPath = '/home/chase/Desktop/138/'
+    drawPath = '/home/chase/Desktop/draw'
     for imgName in os.listdir(imgPath):
+        print(imgName)
         img = cv2.imread(imgPath+'/'+imgName)
         start = time.time()
-        result = inference_detector(model, img)
+        result = inference_detector(model, [img])
         print(time.time() - start)
-        bboxes, labels, face_bboxes, face_kps, face_zitais, face_mohus = result
+        bboxes, labels, face_bboxes, face_kps, face_zitais, face_mohus, body_bboxes, body_labels, upclouse_bboxes, upclouse_styles, clouse_bboxes, clouse_colors = result
         drawBboxes(img, bboxes, labels, CLASSES)
         drawFacekps(img, face_kps)
         rectLabels(img, face_bboxes, face_zitais, zitai_classes, drawPath, imgName)
         rectLabels(img, face_bboxes, face_mohus, zitai_classes, drawPath, imgName, type='mohu')
+        rectLabels(img, body_bboxes, body_labels, bodydetector_categoriesName, drawPath, imgName)
+        rectLabels(img, upclouse_bboxes, upclouse_styles, clousestyle_categoriesName, drawPath, imgName)
+        rectLabels(img, clouse_bboxes, clouse_colors, clousecolor_categoriesName, drawPath, imgName)
+
         cv2.imwrite(drawPath+'/'+imgName, img)

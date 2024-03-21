@@ -285,7 +285,7 @@ class CascadeRoIHead(BaseRoIHead, BBoxTestMixin, MaskTestMixin):
 
         return losses
 
-    def simple_test(self, x, proposal_list, img_metas, rescale=False):
+    def simple_test(self, x, proposal_list, img_metas, rescale=False, ifdet=False):
         """Test without augmentation.
 
         Args:
@@ -391,7 +391,8 @@ class CascadeRoIHead(BaseRoIHead, BBoxTestMixin, MaskTestMixin):
                 cfg=rcnn_test_cfg)
             det_bboxes.append(det_bbox)
             det_labels.append(det_label)
-
+        if ifdet:
+            return det_bboxes, det_labels
         bbox_results = [
             bbox2result(det_bboxes[i], det_labels[i],
                         self.bbox_head[-1].num_classes)

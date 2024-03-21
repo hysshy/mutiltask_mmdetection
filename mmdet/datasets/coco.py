@@ -80,7 +80,7 @@ class CocoDataset(CustomDataset):
         data_infos = []
         total_ann_ids = []
         detectids = []
-        self.hydata = False
+        self.hydata = True
         for i in self.img_ids:
             info = self.coco.load_imgs([i])[0]
             if self.test_mode and self.hydata:

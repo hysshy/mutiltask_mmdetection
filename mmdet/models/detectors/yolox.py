@@ -8,12 +8,13 @@ from mmcv.runner import get_dist_info
 
 from ...utils import log_img_scale
 from ..builder import DETECTORS
-# from .single_stage_spjgh import SingleStageDetector_SPJGH
-from .single_stage import SingleStageDetector
+# from .single_stage import SingleStageDetector
+from .single_stage_spjgh import SingleStageDetector_SPJGH
+# from .single_stage import SingleStageDetector
 
 
 @DETECTORS.register_module()
-class YOLOX(SingleStageDetector):
+class YOLOX(SingleStageDetector_SPJGH):
     r"""Implementation of `YOLOX: Exceeding YOLO Series in 2021
     <https://arxiv.org/abs/2107.08430>`_
 
