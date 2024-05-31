@@ -174,9 +174,7 @@ class BBoxTestMixin:
     #人脸质量评估
     def simple_test_qt_bboxes(self,
                            x,
-                           img_metas,
-                           face_bboxes,
-                           rescale=False):
+                           face_bboxes):
         """Test only det bboxes without augmentation."""
         qt_rois = face_bboxes[:, [4, 0, 1, 2, 3]]
         qt_rois[:, 0] = 0

@@ -378,8 +378,7 @@ class StandardRoIHead(BaseRoIHead, BBoxTestMixin, MaskTestMixin):
             scale_factor = img_metas[0]["scale_factor"]
             scale_factor = torch.tensor(scale_factor).type_as(face_bboxes)
             face_bboxes[:,0:4] *= scale_factor
-            qt = self.simple_test_qt_bboxes(
-                x, img_metas, face_bboxes, rescale=rescale)
+            qt = self.simple_test_qt_bboxes(x, face_bboxes)
         return qt
 
     def simple_test(self,
