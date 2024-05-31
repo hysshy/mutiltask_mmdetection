@@ -4,8 +4,8 @@ import time
 import numpy as np
 import os
 import threading
-from Log import logger
-from drawUtils import *
+from tools.drawUtils import *
+from util import prefactor_fence
 CLASSES = ['face', 'facewithmask', 'person', 'lianglunche', 'sanlunche', 'car', 'truck', 'dog', 'cat']
 zitai_classes = ['微右', '微左', '正脸', '下左', '下右', '微下', '重上', '重下', '重右', '重左', '遮挡或半脸']
 bodydetector_categoriesName = ['short_sleeves', 'long_sleeves', 'skirt', 'long_trousers', 'short_trousers', 'backbag',
@@ -40,15 +40,19 @@ if __name__ == '__main__':
         print(imgName)
         start = time.time()
         img = cv2.imread(imgPath+'/'+imgName)
-        result = inference_detector(model, [img])
+        # img = cv2.imread('/home/chase/Desktop/微信图片_20240408181351.png')
+        result = inference_detector(model, img)
         print(time.time() - start)
-        bboxes, labels, face_bboxes, face_kps, face_zitais, face_mohus, body_bboxes, body_labels, upclouse_bboxes, upclouse_styles, clouse_bboxes, clouse_colors = result
+        bboxes, labels, face_bboxes, face_labels, face_kps, face_zitais, face_mohus, body_bboxes, body_labels, upclouse_bboxes, upclouse_styles, clouse_bboxes, clouse_labels, clouse_colors = result
+        # bboxes, labels, face_bboxes, face_kps, face_zitais, face_mohus, body_bboxes, body_labels, upclouse_bboxes, upclouse_styles, clouse_bboxes, clouse_labels, clouse_colors = result
+        # prefactor_fence(bboxes, labels, face_bboxes, face_kps, face_zitais, face_mohus, body_bboxes, body_labels, upclouse_bboxes, upclouse_styles, clouse_bboxes, clouse_labels, clouse_colors, None)
         drawBboxes(img, bboxes, labels, CLASSES)
-        drawFacekps(img, face_kps)
-        rectLabels(img, face_bboxes, face_zitais, zitai_classes, drawPath, imgName)
-        rectLabels(img, face_bboxes, face_mohus, zitai_classes, drawPath, imgName, type='mohu')
-        rectLabels(img, body_bboxes, body_labels, bodydetector_categoriesName, drawPath, imgName)
-        rectLabels(img, upclouse_bboxes, upclouse_styles, clousestyle_categoriesName, drawPath, imgName)
-        rectLabels(img, clouse_bboxes, clouse_colors, clousecolor_categoriesName, drawPath, imgName)
+        drawBboxes(img, body_bboxes, body_labels, bodydetector_categoriesName)
+        # drawFacekps(img, face_kps)
+        # rectLabels(img, face_bboxes, face_zitais, zitai_classes, drawPath, imgName)
+        # rectLabels(img, face_bboxes, face_mohus, zitai_classes, drawPath, imgName, type='mohu')
+        # rectLabels(img, body_bboxes, body_labels, bodydetector_categoriesName, drawPath, imgName)
+        # rectLabels(img, upclouse_bboxes, upclouse_styles, clousestyle_categoriesName, drawPath, imgName)
+        # rectLabels(img, clouse_bboxes, clouse_colors, clousecolor_categoriesName, drawPath, imgName)
 
         cv2.imwrite(drawPath+'/'+imgName, img)

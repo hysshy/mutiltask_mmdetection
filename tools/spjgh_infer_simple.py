@@ -5,18 +5,18 @@ import mmcv
 import time
 import cv2
 
-config_file = '/home/chase/shy/mmdetection/faster_rcnn_r50_fpn_2x_spjgh.py'
-checkpoint_file = '/home/chase/shy/epoch_12.pth'
+config_file = '/home/chase/shy/mutiltask_mmdetection/tools/work_dirs/faster_rcnn_r50_fpn_2x_coco_spjgh/faster_rcnn_r50_fpn_2x_spjgh.py'
+checkpoint_file = '/home/chase/shy/mutiltask_mmdetection/tools/work_dirs/faster_rcnn_r50_fpn_2x_coco_spjgh/epoch_12.pth'
 face_classes = ['face', 'facewithmask']
 person_classes = ['person', 'lianglunche']
 pet_classes = ['dog', 'cat']
 car_classes = ['sanlunche', 'car', 'truck']
 zitai_classes = ['微右', '微左', '正脸', '下左', '下右', '微下', '重上', '重下', '重右', '重左', '遮挡或半脸']
 upclouse_classes = ["short_sleeves", "long_sleeves"]
-downclouse_classes = [ "skirt", "short_trousers", "long_trousers"]
-otherfactor_classes = ["glasses", "hat", "handbag", "haversack", "backbag", 'trunk']
-color_classes = ["black", "white", "gray", "blue", "red", "yellow", 'orange', "green", "brown","purple", "light_blue", "light_red", "deep_blue", "deep_green", "deep_red", "blue_green"]
-upclouse_style_classes = ['medium_style', 'long_style']
+downclouse_classes = [ "skirt", "long_trousers", "short_trousers", ]
+otherfactor_classes = ['backbag','glasses','handbag','hat','haversack', 'trunk']
+color_classes = ['light_blue','light_red','khaki','gray','blue','red','green','brown','yellow','purple','white','orange','deep_blue','deep_green','deep_red','black','stripe','lattice','mess','decor','blue_green']
+upclouse_style_classes = ['medium_long_style','medium_style', 'long_style']
 
 colorList = [(0, 0, 255), (0, 0, 255), (0, 0, 255), (0, 0, 255), (0, 0, 255)]
 
@@ -58,14 +58,11 @@ def rectLabels(img, bboxes, labels, classes, type='zitai'):
         cv2.imwrite(savePath + '/' + name + '/' + imgName.replace('.jpg', '_'+str(i) + '.jpg'),
                     img[bbox[1]:bbox[3], bbox[0]:bbox[2]])
 
-imgPath = '/home/chase/shy/dataset/xinao/test'
-savePath = '/home/chase/shy/dataset/xinao/draw2'
+imgPath = '/home/chase/shy/138/images'
+savePath = '/home/chase/shy/138/draw3'
 timeList = []
-for i in range(20):
-# for imgName in os.listdir(imgPath):
-#     img = imgPath+'/'+imgName
-    img = '/home/chase/shy/dataset/xinao/test/6132.jpg'
-    # print(img)
+for imgName in os.listdir(imgPath):
+    img = imgPath+'/'+imgName
     # test a single image and show the results
     img = cv2.imread(img)  # or img = mmcv.imread(img), which will only load it once
     start = time.time()
@@ -74,18 +71,18 @@ for i in range(20):
     upclouse_color_labels, upclouse_style_labels, downclouse_factor_bboxes, downclouse_factor_labels, downclouse_color_labels, other_factor_bboxes, other_factor_labels\
         = inference_detector(model, img)
     timeList.append(time.time()-start)
-print(min(timeList), max(timeList), np.mean(timeList))
-    # drawBboxes(img, clearPerson_bboxes, clearPerson_labels, person_classes)
-    # drawBboxes(img, car_bboxes, car_labels, car_classes)
-    # drawBboxes(img, pets_bboxes, pets_labels, pet_classes)
-    # drawBboxes(img, face_bboxes, face_labels, face_classes)
-    # drawFacekps(img, face_kps)
-    # rectLabels(img, face_bboxes, zitai_labels, zitai_classes)
-    # rectLabels(img, face_bboxes, faceMohus, zitai_classes, type='mohu')
-    # for i in range(len(upclouse_factor_bboxes)):
-    #     drawBboxes(img, upclouse_factor_bboxes[i], upclouse_factor_labels[i], upclouse_classes, upclouse_color_labels[i], color_classes, upclouse_style_labels[i], upclouse_style_classes)
-    # for i in range(len(downclouse_factor_bboxes)):
-    #     drawBboxes(img, downclouse_factor_bboxes[i], downclouse_factor_labels[i], downclouse_classes, downclouse_color_labels[i], color_classes)
-    # for i in range(len(other_factor_bboxes)):
-    #     drawBboxes(img, other_factor_bboxes[i], other_factor_labels[i], otherfactor_classes)
-    # cv2.imwrite(savePath+'/'+imgName, img)
+    drawBboxes(img, clearPerson_bboxes, clearPerson_labels, person_classes)
+    drawBboxes(img, car_bboxes, car_labels, car_classes)
+    drawBboxes(img, pets_bboxes, pets_labels, pet_classes)
+    drawBboxes(img, face_bboxes, face_labels, face_classes)
+    drawFacekps(img, face_kps)
+    rectLabels(img, face_bboxes, zitai_labels, zitai_classes)
+    rectLabels(img, face_bboxes, faceMohus, zitai_classes, type='mohu')
+    for i in range(len(upclouse_factor_bboxes)):
+        drawBboxes(img, upclouse_factor_bboxes[i], upclouse_factor_labels[i], upclouse_classes, upclouse_color_labels[i], color_classes, upclouse_style_labels[i], upclouse_style_classes)
+    for i in range(len(downclouse_factor_bboxes)):
+        drawBboxes(img, downclouse_factor_bboxes[i], downclouse_factor_labels[i], downclouse_classes, downclouse_color_labels[i], color_classes)
+    for i in range(len(other_factor_bboxes)):
+        drawBboxes(img, other_factor_bboxes[i], other_factor_labels[i], otherfactor_classes)
+    cv2.imwrite(savePath+'/'+imgName, img)
+    print(min(timeList), max(timeList), np.mean(timeList))

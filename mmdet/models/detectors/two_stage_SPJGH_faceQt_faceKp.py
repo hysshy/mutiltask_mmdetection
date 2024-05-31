@@ -130,23 +130,26 @@ class TwoStageDetector_SPJGH_FaceQt_FaceKp(BaseDetector):
         Returns:
             dict[str, Tensor]: a dictionary of loss components
         """
-
+        print(img_metas[0]['filename'])
+        print(img_metas[1]['filename'])
+        if img_metas[0]['filename'] == '/home/chase/shy/dataset/spjgh/clouseStyleImgs/refineData_1_1287572342032019456.jpg':
+            print('ddd')
         x = self.extract_feat(img)
         losses = dict()
         # 区分人脸标签和姿态标签
         detect_x, detect_img_metas, detect_gt_bboxes, detect_gt_labels = labelstransform.findLabelbyFile(x, img_metas, gt_bboxes, gt_labels, gt_keypoints, gt_visibles, 'detectImgs', 0)
-        facezitai_x, facezitai_img_metas, facezitai_gt_bboxes, facezitai_gt_labels = labelstransform.findLabelbyFile(x, img_metas, gt_bboxes, gt_labels, gt_keypoints, gt_visibles, 'faceZitaiImgs', 9)
+        facezitai_x, facezitai_img_metas, facezitai_gt_bboxes, facezitai_gt_labels = labelstransform.findLabelbyFile(x, img_metas, gt_bboxes, gt_labels, gt_keypoints, gt_visibles, 'faceZitaiImgs', 0)
         facemohu_x, facemohu_img_metas, facemohu_gt_bboxes, facemohu_gt_labels = labelstransform.findLabelbyFile(x, img_metas, gt_bboxes, gt_labels, gt_keypoints, gt_visibles, 'faceMohuImgs', 0)
-        facekp_x, facekp_img_metas, facekp_gt_bboxes, facekp_gt_keypoints = labelstransform.findLabelbyFile(x, img_metas, gt_bboxes, gt_labels, gt_keypoints, gt_visibles, 'faceKpimages', 0)
+        facekp_x, facekp_img_metas, facekp_gt_bboxes, facekp_gt_keypoints = labelstransform.findLabelbyFile(x, img_metas, gt_bboxes, gt_labels, gt_keypoints, gt_visibles, 'faceKpImgs', 0)
         bodydetect_x, bodydetect_img_metas, bodydetect_gt_bboxes, bodydetect_gt_labels = labelstransform.findLabelbyFile(x, img_metas, gt_bboxes, gt_labels, gt_keypoints, gt_visibles, 'bodyDetectImgs', 0)
         if len(bodydetect_img_metas) > 0:
-            bodydetect_x, bodydetect_gt_bboxes, bodydetect_gt_labels, bodydetect_img_metas, bodydetect_index = labelstransform.rectBodyFactorLabels(bodydetect_x, bodydetect_img_metas, bodydetect_gt_bboxes, bodydetect_gt_labels, 20, 21)
-        clouse_style_x, clouse_style_img_metas, clouse_style_gt_bboxes, clouse_style_gt_labels = labelstransform.findLabelbyFile(x, img_metas, gt_bboxes, gt_labels, gt_keypoints, gt_visibles, 'clouse_styleImgs', 0)
+            bodydetect_x, bodydetect_gt_bboxes, bodydetect_gt_labels, bodydetect_img_metas, bodydetect_index = labelstransform.rectBodyFactorLabels(bodydetect_x, bodydetect_img_metas, bodydetect_gt_bboxes, bodydetect_gt_labels, 0, 1)
+        clouse_style_x, clouse_style_img_metas, clouse_style_gt_bboxes, clouse_style_gt_labels = labelstransform.findLabelbyFile(x, img_metas, gt_bboxes, gt_labels, gt_keypoints, gt_visibles, 'clouseStyleImgs', 0)
         if len(clouse_style_img_metas) > 0:
-            clouse_style_x, clouse_style_gt_bboxes, clouse_style_gt_labels, clouse_style_img_metas, clouse_style_index =labelstransform.rectBodyFactorLabels(clouse_style_x, clouse_style_img_metas, clouse_style_gt_bboxes, clouse_style_gt_labels, 20, 32)
-        clouse_color_x, clouse_color_img_metas, clouse_color_gt_bboxes, clouse_color_gt_labels = labelstransform.findLabelbyFile(x, img_metas, gt_bboxes, gt_labels, gt_keypoints, gt_visibles, 'clouse_colorImgs', 0)
+            clouse_style_x, clouse_style_gt_bboxes, clouse_style_gt_labels, clouse_style_img_metas, clouse_style_index =labelstransform.rectBodyFactorLabels(clouse_style_x, clouse_style_img_metas, clouse_style_gt_bboxes, clouse_style_gt_labels, 0, 1)
+        clouse_color_x, clouse_color_img_metas, clouse_color_gt_bboxes, clouse_color_gt_labels = labelstransform.findLabelbyFile(x, img_metas, gt_bboxes, gt_labels, gt_keypoints, gt_visibles, 'clouseColorImgs', 0)
         if len(clouse_color_img_metas) > 0:
-            clouse_color_x, clouse_color_gt_bboxes, clouse_color_gt_labels, clouse_color_img_metas, clouse_color_index =labelstransform.rectBodyFactorLabels(clouse_color_x, clouse_color_img_metas, clouse_color_gt_bboxes, clouse_color_gt_labels, 20, 34)
+            clouse_color_x, clouse_color_gt_bboxes, clouse_color_gt_labels, clouse_color_img_metas, clouse_color_index =labelstransform.rectBodyFactorLabels(clouse_color_x, clouse_color_img_metas, clouse_color_gt_bboxes, clouse_color_gt_labels, 0, 1)
         if len(detect_img_metas) >0:
             assert len(detect_img_metas) == 2
             # RPN forward and loss
@@ -277,6 +280,7 @@ class TwoStageDetector_SPJGH_FaceQt_FaceKp(BaseDetector):
             for name, value in clouse_style_roi_losses.items():
                 losses['clouse_style_{}'.format(name)] = (
                     value)
+            print(losses)
         return losses
 
     async def async_simple_test(self,
@@ -327,6 +331,8 @@ class TwoStageDetector_SPJGH_FaceQt_FaceKp(BaseDetector):
             proposal_list = proposals
         if proposal_list[0].size(0) == 0:
             return [],[],[]
+        # return self.detect_roi_head.simple_test(
+        #     x, proposal_list, img_metas, rescale=rescale, ifdet=False)
         det_bboxes, det_labels = self.detect_roi_head.simple_test(
             x, proposal_list, img_metas, rescale=rescale, ifdet=True)
         # det_bboxes, det_labels = labelstransform.simple_test_unRepeated(det_bboxes, det_labels)
@@ -339,54 +345,54 @@ class TwoStageDetector_SPJGH_FaceQt_FaceKp(BaseDetector):
             face_kps = self.faceKp_roi_head.simple_hy_kp_test(
                 x, face_bboxes.clone(), img_metas, rescale=rescale)
             face_kps = face_kps.cpu().numpy()
-        #     # 人脸模糊度评估
-        #     faceMohus = self.facemohu_roi_head.simple_hy_qt_test(
-        #         x, face_bboxes.clone(), img_metas, rescale=rescale)
-        #     faceMohus = faceMohus.cpu().numpy()
-        #
-        # if len(person_bboxes) > 0:
-        #     # 电子围栏，筛选清晰行人
-        #     clearPerson_bboxes, clearPerson_labels, vaguePerson_bboxes, vaguePerson_labels = \
-        #         labelstransform.simple_test_findClearPerson(person_bboxes, person_labels, minWidth=100, minHeight=300)
-        #     # 行人特征切割
-        #     persons_x_list, person_img_metas = labelstransform.simple_test_findPersonFeats(x, clearPerson_bboxes, img_metas)
-        #     for i in range(len(persons_x_list)):
-        #         # 行人属性目标检测
-        #         proposal_list = self.bodydetect_rpn_head.simple_test_rpn(persons_x_list[i], [person_img_metas[i]])
-        #         bodydetect_bboxes_single, bodydetect_labels_single = self.bodydetect_roi_head.simple_test(
-        #             persons_x_list[i], proposal_list, [person_img_metas[i]], rescale=True, ifdet=True)
-        #         # bodydetect_bboxes_single = labelstransform.simple_test_BboxesConvert(clearPerson_bboxes[i], bodydetect_bboxes_single)
-        #         # 筛选上衣
-        #         upclouse_factor_bboxes_single, upclouse_factor_labels_single = labelstransform.simple_test_findDstLabels(bodydetect_bboxes_single, bodydetect_labels_single, 6, 7)
-        #         # 筛选下衣
-        #         downclouse_factor_bboxes_single, downclouse_factor_labels_single = labelstransform.simple_test_findDstLabels(bodydetect_bboxes_single, bodydetect_labels_single, 8, 10)
-        #         # 其他属性
-        #         other_factor_bboxes_single, other_factor_labels_single = labelstransform.simple_test_findDstLabels(bodydetect_bboxes_single, bodydetect_labels_single, 0, 5)
-        #         clouse_factor_bboxes_single = torch.cat([upclouse_factor_bboxes_single, downclouse_factor_bboxes_single])
-        #         # 颜色分类
-        #         clouse_color_labels_single = self.clouse_color_roi_head.simple_cls_test(persons_x_list[i], clouse_factor_bboxes_single.clone(), [person_img_metas[i]])
-        #         upclouse_color_labels_single = clouse_color_labels_single[0:upclouse_factor_bboxes_single.size(0)]
-        #         downclouse_color_labels_single = clouse_color_labels_single[upclouse_factor_bboxes_single.size(0):]
-        #         # 风格分类
-        #         upclouse_style_labels_single = self.clouse_style_roi_head.simple_cls_test(persons_x_list[i], upclouse_factor_bboxes_single.clone(), [person_img_metas[i]])
-        #
-        #         upclouse_factor_bboxes_single = labelstransform.simple_test_BboxesConvert(clearPerson_bboxes[i], upclouse_factor_bboxes_single)
-        #         downclouse_factor_bboxes_single = labelstransform.simple_test_BboxesConvert(clearPerson_bboxes[i], downclouse_factor_bboxes_single)
-        #         other_factor_bboxes_single = labelstransform.simple_test_BboxesConvert(clearPerson_bboxes[i], other_factor_bboxes_single)
-        #
-        #         upclouse_style_labels.append(upclouse_style_labels_single.cpu().numpy())
-        #         upclouse_factor_bboxes.append(upclouse_factor_bboxes_single.cpu().numpy())
-        #         upclouse_factor_labels.append(upclouse_factor_labels_single.cpu().numpy())
-        #         upclouse_color_labels.append(upclouse_color_labels_single.cpu().numpy())
-        #         downclouse_factor_bboxes.append(downclouse_factor_bboxes_single.cpu().numpy())
-        #         downclouse_factor_labels.append(downclouse_factor_labels_single.cpu().numpy())
-        #         downclouse_color_labels.append(downclouse_color_labels_single.cpu().numpy())
-        #         other_factor_bboxes.append(other_factor_bboxes_single.cpu().numpy())
-        #         other_factor_labels.append(other_factor_labels_single.cpu().numpy())
-        #
-        #     clearPerson_bboxes = clearPerson_bboxes.cpu().numpy()
-        #     clearPerson_labels = clearPerson_labels.cpu().numpy()
-        #
+            # 人脸模糊度评估
+            faceMohus = self.facemohu_roi_head.simple_hy_qt_test(
+                x, face_bboxes.clone(), img_metas, rescale=rescale)
+            faceMohus = faceMohus.cpu().numpy()
+
+        if len(person_bboxes) > 0:
+            # 电子围栏，筛选清晰行人
+            clearPerson_bboxes, clearPerson_labels, vaguePerson_bboxes, vaguePerson_labels = \
+                labelstransform.simple_test_findClearPerson(person_bboxes, person_labels, minWidth=100, minHeight=300)
+            # 行人特征切割
+            persons_x_list, person_img_metas = labelstransform.simple_test_findPersonFeats(x, clearPerson_bboxes, img_metas)
+            for i in range(len(persons_x_list)):
+                # 行人属性目标检测
+                proposal_list = self.bodydetect_rpn_head.simple_test_rpn(persons_x_list[i], [person_img_metas[i]])
+                bodydetect_bboxes_single, bodydetect_labels_single = self.bodydetect_roi_head.simple_test(
+                    persons_x_list[i], proposal_list, [person_img_metas[i]], rescale=True, ifdet=True)
+                # bodydetect_bboxes_single = labelstransform.simple_test_BboxesConvert(clearPerson_bboxes[i], bodydetect_bboxes_single)
+                # 筛选上衣
+                upclouse_factor_bboxes_single, upclouse_factor_labels_single = labelstransform.simple_test_findDstLabels(bodydetect_bboxes_single, bodydetect_labels_single, 0, 1)
+                # 筛选下衣
+                downclouse_factor_bboxes_single, downclouse_factor_labels_single = labelstransform.simple_test_findDstLabels(bodydetect_bboxes_single, bodydetect_labels_single, 2, 4)
+                # 其他属性
+                other_factor_bboxes_single, other_factor_labels_single = labelstransform.simple_test_findDstLabels(bodydetect_bboxes_single, bodydetect_labels_single, 5, 10)
+                clouse_factor_bboxes_single = torch.cat([upclouse_factor_bboxes_single, downclouse_factor_bboxes_single])
+                # 颜色分类
+                clouse_color_labels_single = self.clouse_color_roi_head.simple_cls_test(persons_x_list[i], clouse_factor_bboxes_single.clone(), [person_img_metas[i]])
+                upclouse_color_labels_single = clouse_color_labels_single[0:upclouse_factor_bboxes_single.size(0)]
+                downclouse_color_labels_single = clouse_color_labels_single[upclouse_factor_bboxes_single.size(0):]
+                # 风格分类
+                upclouse_style_labels_single = self.clouse_style_roi_head.simple_cls_test(persons_x_list[i], upclouse_factor_bboxes_single.clone(), [person_img_metas[i]])
+
+                upclouse_factor_bboxes_single = labelstransform.simple_test_BboxesConvert(clearPerson_bboxes[i], upclouse_factor_bboxes_single)
+                downclouse_factor_bboxes_single = labelstransform.simple_test_BboxesConvert(clearPerson_bboxes[i], downclouse_factor_bboxes_single)
+                other_factor_bboxes_single = labelstransform.simple_test_BboxesConvert(clearPerson_bboxes[i], other_factor_bboxes_single)
+
+                upclouse_style_labels.append(upclouse_style_labels_single.cpu().numpy())
+                upclouse_factor_bboxes.append(upclouse_factor_bboxes_single.cpu().numpy())
+                upclouse_factor_labels.append(upclouse_factor_labels_single.cpu().numpy())
+                upclouse_color_labels.append(upclouse_color_labels_single.cpu().numpy())
+                downclouse_factor_bboxes.append(downclouse_factor_bboxes_single.cpu().numpy())
+                downclouse_factor_labels.append(downclouse_factor_labels_single.cpu().numpy())
+                downclouse_color_labels.append(downclouse_color_labels_single.cpu().numpy())
+                other_factor_bboxes.append(other_factor_bboxes_single.cpu().numpy())
+                other_factor_labels.append(other_factor_labels_single.cpu().numpy())
+
+            clearPerson_bboxes = clearPerson_bboxes.cpu().numpy()
+            clearPerson_labels = clearPerson_labels.cpu().numpy()
+
         face_bboxes = face_bboxes.cpu().numpy()
         face_labels = face_labels.cpu().numpy()
         person_bboxes =person_bboxes.cpu().numpy()

@@ -34,6 +34,5 @@ def rectLabels(img, bboxes, labels, classes, savePath, imgName, type='zitai'):
             name = classes[label]
         if not os.path.exists(savePath + '/' + name):
             os.makedirs(savePath + '/' + name)
-        print(bbox)
         cv2.imwrite(savePath + '/' + name + '/' + imgName.replace('.jpg', '_'+str(i) + '.jpg'),
                     img[bbox[1]:bbox[3], bbox[0]:bbox[2]])

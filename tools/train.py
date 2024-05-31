@@ -20,7 +20,7 @@ from mmdet.models import build_detector
 from mmdet.utils import (collect_env, get_device, get_root_logger,
                          replace_cfg_vals, setup_multi_processes,
                          update_data_root)
-
+from temptest import fed_bl
 
 def parse_args():
     parser = argparse.ArgumentParser(description='Train a detector')
@@ -230,6 +230,10 @@ def main():
             CLASSES=datasets[0].CLASSES)
     # add an attribute for visualization convenience
     model.CLASSES = datasets[0].CLASSES
+    # add fed_lw
+    fedbl = False
+    if hasattr(cfg, 'fedbl'):
+        fedbl = cfg.fedbl
     train_detector(
         model,
         datasets,
@@ -237,7 +241,8 @@ def main():
         distributed=distributed,
         validate=(not args.no_validate),
         timestamp=timestamp,
-        meta=meta)
+        meta=meta,
+        fedbl=fedbl)
 
 
 if __name__ == '__main__':

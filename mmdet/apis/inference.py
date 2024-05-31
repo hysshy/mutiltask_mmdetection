@@ -156,7 +156,7 @@ def inference_detector(model, imgs, pre_bboxes=None, adaptive_w_dict=None):
         results = model(return_loss=False, rescale=True, **data)
     # return results
     if not is_batch:
-        return results[0]
+        return results
     else:
         return results
 
