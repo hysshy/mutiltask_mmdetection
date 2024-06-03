@@ -7,6 +7,16 @@ import torch.nn.functional as F
 from shapely.geometry import Point
 from shapely.geometry.polygon import Polygon
 
+def IoF(bbox1, bbox2):
+    inter_rect_xmin = max(bbox1[0], bbox2[0])
+    inter_rect_ymin = max(bbox1[1], bbox2[1])
+    inter_rect_xmax = min(bbox1[2], bbox2[2])
+    inter_rect_ymax = min(bbox1[3], bbox2[3])
+    inter_area = max(0, (inter_rect_xmax - inter_rect_xmin)) * max(0, (inter_rect_ymax - inter_rect_ymin))
+    area1 = (bbox1[2] - bbox1[0]) * (bbox1[3] - bbox1[1])
+    iou = inter_area / area1
+    return iou
+
 def findLabelbyFile(x, img_metas, gt_bboxes, gt_labels, gt_keypoints, gt_visibles, targetName, startLabel):
     findImgsIndex = []
     find_img_metas = []
@@ -322,6 +332,59 @@ def simple_test_findPersonFeats(x, person_bboxes, img_metas):
         persons_x_list.append(persons_x)
     return persons_x_list, person_img_metas
 
+def simple_test_findPersonFeats_onnx(x, person_bboxes, img_metas):
+    bodyfeature_depth = 3  # 特征图的层数
+    persons_x_list = []
+    person_img_metas = []
+    scale_factor = img_metas[0]["scale_factor"]
+    max_width = 0
+    max_hight = 0
+    for i in range(len(person_bboxes)):
+        personx1, persony1, personx2, persony2 = person_bboxes[i][:4].cpu().numpy()* scale_factor
+        if (personx2 - personx1) > max_width:
+            max_width = personx2 - personx1
+        if (persony2 - persony1) > max_hight:
+            max_hight = persony2 - persony1
+
+    pad_person_width = int(((max_width + 16) / 16)) * 16
+    pad_person_height = int(((max_hight + 16) / 16)) * 16
+
+    for i in range(len(person_bboxes)):
+        personx1, persony1, personx2, persony2 = person_bboxes[i][:4].cpu().numpy()* scale_factor
+        persons_x = []
+        for x_i in range(bodyfeature_depth):
+            x_x1 = int(personx1 / (2 ** (x_i + 2)))
+            x_y1 = int(persony1 / (2 ** (x_i + 2)))
+            x_x2 = int(personx2 / (2 ** (x_i + 2)))
+            x_y2 = int(persony2 / (2 ** (x_i + 2)))
+            persons_x.append(x[x_i][:, :, x_y1:x_y2, x_x1:x_x2].contiguous())
+        person_img_meta = img_metas[0].copy()
+        # 计算特征图的宽高和pad
+        # person_width = int(personx2 - personx1)
+        # person_height = int(persony2 - persony1)
+        person_img_meta["ori_shape"] = (pad_person_height/scale_factor[1], pad_person_width/scale_factor[0], 3)
+        person_img_meta["img_shape"] = (pad_person_height, pad_person_width, 3)
+        person_img_meta["pad_shape"] = (pad_person_height, pad_person_width, 3)
+        person_img_metas.append(person_img_meta)
+        persons_x_list.append(persons_x)
+
+    cat_person_xlist = [[] for i in range(bodyfeature_depth)]
+    for i in range(len(persons_x_list)):
+        for personsx_i in range(bodyfeature_depth):
+            person_x = persons_x_list[i][personsx_i]
+            pad_width = int(pad_person_width / (2 ** (personsx_i + 2))) - person_x.size(3)
+            pad_height = int(pad_person_height / (2 ** (personsx_i + 2))) - person_x.size(2)
+            assert pad_width >= 0
+            assert pad_height >= 0
+            person_x = F.pad(person_x, (0, pad_width, 0, pad_height), "constant", value=0)
+            persons_x_list[i][personsx_i] = person_x
+            cat_person_xlist[personsx_i].append(person_x)
+
+    for personsx_i in range(bodyfeature_depth):
+        catx = cat_person_xlist[personsx_i]
+        cat_person_xlist[personsx_i] = torch.cat(catx, 0)
+    return cat_person_xlist, person_img_metas
+
 def simple_test_findClearPerson(person_bboxes, person_labels, minWidth=100, minHeight=300):
 
     vaguePerson_labels, clearPerson_labels = [torch.full([0],0).type_as(person_labels) for i in range(2)]
@@ -355,3 +418,17 @@ def simple_test_findDstLabels(bodyfactor_bboxes, bodyfactor_labels, start_label,
         dst_labels = bodyfactor_labels[dst_index] - start_label
         dst_bboxes = bodyfactor_bboxes[dst_index]
     return dst_bboxes, dst_labels
+
+def simple_test_findOther_face(bodyfactor_bboxes, bodyfactor_labels):
+    face_factor_labels = torch.full([0],0).type_as(bodyfactor_bboxes)
+    face_factor_bboxes = torch.full([0,5],0).type_as(bodyfactor_bboxes)
+    if bodyfactor_labels.size(0) > 0:
+        glasses_index = torch.where(bodyfactor_labels == 1)
+        glasses_label = bodyfactor_labels[glasses_index] - 1
+        glasses_bboxes = bodyfactor_bboxes[glasses_index]
+        hat_index = torch.where(bodyfactor_labels == 3)
+        hat_label = bodyfactor_labels[hat_index] - 2
+        hat_bboxes = bodyfactor_bboxes[hat_index]
+        face_factor_labels = torch.cat([glasses_label, hat_label], 0)
+        face_factor_bboxes = torch.cat([glasses_bboxes, hat_bboxes], 0)
+    return face_factor_bboxes, face_factor_labels
