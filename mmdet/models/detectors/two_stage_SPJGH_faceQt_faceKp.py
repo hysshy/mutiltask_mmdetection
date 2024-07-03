@@ -1,3 +1,5 @@
+import time
+
 import torch
 from ..builder import DETECTORS, build_backbone, build_head, build_neck
 from .base import BaseDetector
@@ -319,7 +321,7 @@ class TwoStageDetector_SPJGH_FaceQt_FaceKp(BaseDetector):
         return iouLine
 
 
-    def simple_test(self, img, img_metas, proposals=None, rescale=False, points=None):
+    def simple_test(self, img, img_metas, proposals=None, rescale=False, points=None, classes=None, thr_dict=None):
         """Test without augmentation."""
         car_bboxes, car_labels, pets_bboxes, pets_labels, withfactorPerson_bboxes, withfactorPerson_labels, \
         nofactorPerson_bboxes, nofactorPerson_labels, upClouse_bboxes_list, upClouse_labels_list, upClouse_color_labels_list,\
@@ -328,18 +330,16 @@ class TwoStageDetector_SPJGH_FaceQt_FaceKp(BaseDetector):
         faceMohus_list, face_bboxes_list_all, face_labels_list_all, face_other_bboxes_list_all, face_other_labels_list_all,\
         faceKps_list_all, faceZitais_list_all, faceMohus_list_all = [[] for i in range(29)]
         x = self.extract_feat(img)
-        if proposals is None:
-            proposal_list = self.rpn_head.simple_test_rpn(x, img_metas)
-        else:
-            proposal_list = proposals
-        if proposal_list[0].size(0) == 0:
-            return [],[],[]
+        proposal_list = self.rpn_head.simple_test_rpn(x, img_metas)
+
         # return self.detect_roi_head.simple_test(
         #     x, proposal_list, img_metas, rescale=rescale, ifdet=False)
         det_bboxes, det_labels = self.detect_roi_head.simple_test(
             x, proposal_list, img_metas, rescale=rescale, ifdet=True)
         # det_bboxes, det_labels = labelstransform.simple_test_unRepeated(det_bboxes, det_labels)
-        person_bboxes, person_labels, face_bboxes, face_labels, car_bboxes, car_labels, pets_bboxes, pets_labels = labelstransform.simple_test_splitTarget(det_bboxes, det_labels, points, 0, 1, 2, 3, 4, 6, 7, 8)
+        bbox_list, label_list = labelstransform.simple_test_splitTarget(det_bboxes, det_labels, classes[0], thr_dict, points)
+        face_bboxes, person_bboxes, car_bboxes, pets_bboxes = bbox_list
+        face_labels, person_labels, car_labels, pets_labels = label_list
         if len(face_bboxes) > 0:
             #人脸姿态分类
             faceZitais_list_all = self.facezitai_roi_head.simple_cls_test(x, face_bboxes.clone(), img_metas).cpu().numpy()
@@ -352,7 +352,7 @@ class TwoStageDetector_SPJGH_FaceQt_FaceKp(BaseDetector):
 
         # 行人特征切割
         withfactorPerson_bboxes, withfactorPerson_labels, nofactorPerson_bboxes, nofactorPerson_labels = \
-            labelstransform.simple_test_findClearPerson(person_bboxes, person_labels, minWidth=100, minHeight=300)
+            labelstransform.simple_test_findClearPerson(person_bboxes, person_labels, minWidth=50, minHeight=100)
         if len(withfactorPerson_bboxes) > 0:
             persons_x_list, person_img_metas = labelstransform.simple_test_findPersonFeats(x, withfactorPerson_bboxes, img_metas)
             for i in range(len(persons_x_list)):
@@ -361,12 +361,11 @@ class TwoStageDetector_SPJGH_FaceQt_FaceKp(BaseDetector):
                 bodydetect_bboxes_single, bodydetect_labels_single = self.bodydetect_roi_head.simple_test(
                     persons_x_list[i], proposal_list, [person_img_metas[i]], rescale=True, ifdet=True)
                 # bodydetect_bboxes_single = labelstransform.simple_test_BboxesConvert(clearPerson_bboxes[i], bodydetect_bboxes_single)
-                # 筛选上衣
-                upClouse_bboxes_single, upClouse_labels_single = labelstransform.simple_test_findDstLabels(bodydetect_bboxes_single, bodydetect_labels_single, 0, 1)
-                # 筛选下衣
-                downClouse_bboxes_single, downclouse_labels_single = labelstransform.simple_test_findDstLabels(bodydetect_bboxes_single, bodydetect_labels_single, 2, 4)
-                # 其他属性
-                otherFactor_bboxes_single, otherFactor_labels_single = labelstransform.simple_test_findDstLabels(bodydetect_bboxes_single, bodydetect_labels_single, 5, 10)
+                # 筛选上衣, 下衣, 其他属性
+                bbox_list, label_list = labelstransform.simple_test_splitTarget(bodydetect_bboxes_single, bodydetect_labels_single, classes[1], thr_dict)
+                upClouse_bboxes_single, downClouse_bboxes_single, otherFactor_bboxes_single = bbox_list
+                upClouse_labels_single, downclouse_labels_single, otherFactor_labels_single = label_list
+
                 clouse_bboxes_single = torch.cat([upClouse_bboxes_single, downClouse_bboxes_single])
                 # 颜色分类
                 clouse_color_labels_single = self.clouse_color_roi_head.simple_cls_test(persons_x_list[i], clouse_bboxes_single.clone(), [person_img_metas[i]])
@@ -379,8 +378,6 @@ class TwoStageDetector_SPJGH_FaceQt_FaceKp(BaseDetector):
                 downClouse_bboxes_single = labelstransform.simple_test_BboxesConvert(withfactorPerson_bboxes[i], downClouse_bboxes_single)
                 otherFactor_bboxes_single = labelstransform.simple_test_BboxesConvert(withfactorPerson_bboxes[i], otherFactor_bboxes_single)
 
-                face_other_bboxes_single, face_other_labels_single = labelstransform.simple_test_findOther_face(otherFactor_bboxes_single, otherFactor_labels_single)
-
                 upClouse_bboxes_list.append(upClouse_bboxes_single.cpu().numpy())
                 upClouse_labels_list.append(upClouse_labels_single.cpu().numpy())
                 upClouse_style_labels_list.append(upClouse_style_labels_single.cpu().numpy())
@@ -390,8 +387,6 @@ class TwoStageDetector_SPJGH_FaceQt_FaceKp(BaseDetector):
                 downClouse_color_labels_list.append(downClouse_color_labels_single.cpu().numpy())
                 otherFactor_bboxes_list.append(otherFactor_bboxes_single.cpu().numpy())
                 otherFactor_labels_list.append(otherFactor_labels_single.cpu().numpy())
-                face_other_bboxes_list_all.append(face_other_bboxes_single.cpu().numpy())
-                face_other_labels_list_all.append(face_other_labels_single.cpu().numpy())
 
 
         face_bboxes_list_all = face_bboxes.cpu().numpy()
@@ -404,7 +399,8 @@ class TwoStageDetector_SPJGH_FaceQt_FaceKp(BaseDetector):
         car_labels = car_labels.cpu().numpy()
         pets_bboxes = pets_bboxes.cpu().numpy()
         pets_labels = pets_labels.cpu().numpy()
-        # 对应人脸属性
+
+        # 人脸对应人体
         for i in range(len(withfactorPerson_bboxes)):
             face_bbox_item, face_label_item, faceKps_item, faceZitais_item, faceMohus_item = [], [], [],[],[]
             for j in range(len(face_bboxes_list_all)):
@@ -420,6 +416,24 @@ class TwoStageDetector_SPJGH_FaceQt_FaceKp(BaseDetector):
             faceKps_list.append(faceKps_item)
             faceZitais_list.append(faceZitais_item)
             faceMohus_list.append(faceMohus_item)
+
+        #属性对应人脸
+        for bbox in face_bboxes_list_all:
+            bbox_item, label_item =[], []
+            bbox2 = [bbox[0], max(0, bbox[1]-50), bbox[2], bbox[3]]
+            for j in range(len(otherFactor_labels_list)):
+                for m in range(len(otherFactor_labels_list[j])):
+                    if otherFactor_labels_list[j][m] in [1,3]:
+                        if labelstransform.IoF(otherFactor_bboxes_list[j][m], bbox2) > 0.2:
+                            bbox_item.append(otherFactor_bboxes_list[j][m])
+                            if otherFactor_labels_list[j][m] == 1:
+                                label = 0
+                            elif otherFactor_labels_list[j][m] == 3:
+                                label = 1
+                            label_item.append(label)
+
+            face_other_bboxes_list_all.append(bbox_item)
+            face_other_labels_list_all.append(label_item)
 
         return car_bboxes, car_labels, pets_bboxes, pets_labels, withfactorPerson_bboxes, withfactorPerson_labels, \
         nofactorPerson_bboxes, nofactorPerson_labels, upClouse_bboxes_list, upClouse_labels_list, upClouse_color_labels_list,\

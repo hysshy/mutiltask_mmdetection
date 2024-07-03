@@ -233,87 +233,47 @@ def simple_test_findTarget(det_bboxes, det_labels, points, startlabel, endLabel,
     return target_bboxes, target_labels, index
 
 
-def simple_test_splitTarget(det_bboxes, det_labels, points, startFacelabel, endFaceLabel, startpersonLabel, endpersonLabel,
-                            startCarLabel, endCarLabel,startPetLabel, endPetLabel, minWidth=0, minHeight=0):
-    car_index = torch.where(
-        (det_labels >= startCarLabel) & (det_labels <= endCarLabel))
-    pets_index = torch.where(
-        (det_labels >= startPetLabel) & (det_labels <= endPetLabel))
-    person_index = torch.where(
-        (det_labels >= startpersonLabel) & (det_labels <= endpersonLabel))
-    face_index = torch.where(
-        (det_labels >= startFacelabel) & (det_labels <= endFaceLabel))
-    car_labels = det_labels[car_index] - startCarLabel
-    car_bboxes = det_bboxes[car_index]
-    pets_labels = det_labels[pets_index] - startPetLabel
-    pets_bboxes = det_bboxes[pets_index]
-    person_labels = det_labels[person_index] - startpersonLabel  # 去掉车辆，宠物，从头开始排序
-    person_bboxes = det_bboxes[person_index]
-    face_labels = det_labels[face_index] - startFacelabel
-    face_bboxes = det_bboxes[face_index]
-
-    bboxes_width = person_bboxes[:, 2] - person_bboxes[:, 0]
-    bboxes_height = person_bboxes[:, 3] - person_bboxes[:, 1]
-    factorValued_index = torch.where((bboxes_width > minWidth) & (bboxes_height > minHeight))
-    person_bboxes = person_bboxes[factorValued_index]
-    person_labels = person_labels[factorValued_index]
-
+def simple_test_splitTarget(det_bboxes, det_labels, classes, thr_dict, points=None):
     if points is not None:
         # 电子围栏
         infence_index = []
         polygon = Polygon(points)
-        for det_i in range(len(person_labels)):
-            box = person_bboxes[det_i]
+        for det_i in range(len(det_labels)):
+            box = det_bboxes[det_i]
             if polygon.contains(Point([box[0], box[1]])) and polygon.contains(Point([box[2], box[3]])):
                 infence_index.append(True)
             else:
                 infence_index.append(False)
-        person_labels = person_labels[infence_index]
-        person_bboxes = person_bboxes[infence_index]
+        det_labels = det_labels[infence_index]
+        det_bboxes = det_bboxes[infence_index]
 
-        infence_index = []
-        polygon = Polygon(points)
-        for det_i in range(len(car_labels)):
-            box = car_bboxes[det_i]
-            if polygon.contains(Point([(box[0]+box[2])/2, (box[1]+box[3])/2])):
-                infence_index.append(True)
-            else:
-                infence_index.append(False)
-        car_labels = car_labels[infence_index]
-        car_bboxes = car_bboxes[infence_index]
-
-        infence_index = []
-        polygon = Polygon(points)
-        for det_i in range(len(pets_labels)):
-            box = pets_bboxes[det_i]
-            if polygon.contains(Point([(box[0]+box[2])/2, (box[1]+box[3])/2])):
-                infence_index.append(True)
-            else:
-                infence_index.append(False)
-        pets_labels = pets_labels[infence_index]
-        pets_bboxes = pets_bboxes[infence_index]
-
-        infence_index = []
-        polygon = Polygon(points)
-        for det_i in range(len(face_labels)):
-            box = face_bboxes[det_i]
-            if polygon.contains(Point([(box[0]+box[2])/2, (box[1]+box[3])/2])):
-                infence_index.append(True)
-            else:
-                infence_index.append(False)
-        face_labels = face_labels[infence_index]
-        face_bboxes = face_bboxes[infence_index]
-
-    return person_bboxes, person_labels, face_bboxes, face_labels, car_bboxes, car_labels, pets_bboxes,  pets_labels
+    tru_label = 0
+    sub_label = 0
+    bbox_return_list, label_return_list = [], []
+    for i in range(len(classes)):
+        bbox_list, label_list = [], []
+        for j in range(len(classes[i])):
+            true_index = torch.where((det_labels==tru_label) & (det_bboxes[:,4] > thr_dict[classes[i][j]]))
+            tru_label += 1
+            bbox_list.append(det_bboxes[true_index])
+            label_list.append(det_labels[true_index])
+        bbox_return_list.append(torch.cat(bbox_list, 0))
+        label_return_list.append(torch.cat(label_list, 0) - sub_label)
+        sub_label = sub_label + len(classes[i])
+        
+    return bbox_return_list, label_return_list
 
 def simple_test_findPersonFeats(x, person_bboxes, img_metas):
     bodyfeature_depth = 3  # 特征图的层数
     persons_x_list = []
     person_img_metas = []
     scale_factor = img_metas[0]["scale_factor"]
+    img_shape = img_metas[0]["img_shape"]
 
     for i in range(len(person_bboxes)):
         personx1, persony1, personx2, persony2 = person_bboxes[i][:4].cpu().numpy() * scale_factor
+        # personx1 = max(0, personx1 - 10)
+        # personx2 = min(personx2+10, img_shape[1])
         persons_x = []
         for x_i in range(bodyfeature_depth):
             x_x1 = int(personx1 / (2 ** (x_i + 2)))
@@ -410,14 +370,22 @@ def simple_test_BboxesConvert(bboxes, sub_bboxes):
             sub_bboxes[i][1:4:2] += ymin
     return sub_bboxes
 
-def simple_test_findDstLabels(bodyfactor_bboxes, bodyfactor_labels, start_label, end_label):
-    dst_labels = torch.full([0],0).type_as(bodyfactor_bboxes)
-    dst_bboxes = torch.full([0,5],0).type_as(bodyfactor_bboxes)
+def simple_test_findDstLabels(bodyfactor_bboxes, bodyfactor_labels, upClouse_start_label, upClouse_end_label,
+                              downClouse_start_label, downClouse_end_label, otherFactor_start_label, otherFactor_end_label):
+
+    upClouse_labels, downClouse_labels, otherFactor_labels = [torch.full([0],0).type_as(bodyfactor_bboxes) for _ in range(3)]
+    upClouse_bboxes, downClouse_bboxes, otherFactor_bboxes = [torch.full([0,5],0).type_as(bodyfactor_bboxes) for _ in range(3)]
     if bodyfactor_labels.size(0) > 0:
-        dst_index = torch.where((bodyfactor_labels >= start_label) & (bodyfactor_labels <= end_label))
-        dst_labels = bodyfactor_labels[dst_index] - start_label
-        dst_bboxes = bodyfactor_bboxes[dst_index]
-    return dst_bboxes, dst_labels
+        dst_index = torch.where((bodyfactor_labels >= upClouse_start_label) & (bodyfactor_labels <= upClouse_end_label))
+        upClouse_labels = bodyfactor_labels[dst_index] - upClouse_start_label
+        upClouse_bboxes = bodyfactor_bboxes[dst_index]
+        dst_index = torch.where((bodyfactor_labels >= downClouse_start_label) & (bodyfactor_labels <= downClouse_end_label))
+        downClouse_labels = bodyfactor_labels[dst_index] - downClouse_start_label
+        downClouse_bboxes = bodyfactor_bboxes[dst_index]
+        dst_index = torch.where((bodyfactor_labels >= otherFactor_start_label) & (bodyfactor_labels <= otherFactor_end_label))
+        otherFactor_labels = bodyfactor_labels[dst_index] - otherFactor_start_label
+        otherFactor_bboxes = bodyfactor_bboxes[dst_index]
+    return upClouse_bboxes, upClouse_labels, downClouse_bboxes, downClouse_labels, otherFactor_bboxes, otherFactor_labels
 
 def simple_test_findOther_face(bodyfactor_bboxes, bodyfactor_labels):
     face_factor_labels = torch.full([0],0).type_as(bodyfactor_bboxes)
@@ -432,3 +400,4 @@ def simple_test_findOther_face(bodyfactor_bboxes, bodyfactor_labels):
         face_factor_labels = torch.cat([glasses_label, hat_label], 0)
         face_factor_bboxes = torch.cat([glasses_bboxes, hat_bboxes], 0)
     return face_factor_bboxes, face_factor_labels
+
