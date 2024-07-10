@@ -90,7 +90,7 @@ class LoadImage:
         return results
 
 
-def inference_detector(model, imgs, pre_bboxes=None, adaptive_w_dict=None):
+def inference_detector(model, imgs, pre_bboxes=None, adaptive_w_dict=None, classes=None, thr_dict=None):
     """Inference image(s) with the detector.
 
     Args:
@@ -151,12 +151,16 @@ def inference_detector(model, imgs, pre_bboxes=None, adaptive_w_dict=None):
     if adaptive_w_dict is not None:
         # data中加入adaptive_w_dict
         data.setdefault("adaptive_w_dict", adaptive_w_dict)
+    if classes is not None:
+        data.setdefault("classes", classes)
+    if thr_dict is not None:
+        data.setdefault("thr_dict", thr_dict)
     # forward the model
     with torch.no_grad():
         results = model(return_loss=False, rescale=True, **data)
     # return results
     if not is_batch:
-        return results
+        return results[0]
     else:
         return results
 
